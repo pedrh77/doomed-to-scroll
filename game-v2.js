@@ -101,6 +101,7 @@ function discover(id) {
 }
 
 function newRun() {
+  if (run && run.reactionTimer) clearTimeout(run.reactionTimer);
   run = {
     energy: 100,
     coins: 0,
@@ -110,6 +111,9 @@ function newRun() {
     inventory: [],
     freePosts: 0,
     doubleNext: false,
+    mascotMood: "neutral",
+    mascotReaction: null,
+    reactionTimer: null,
     newDiscoveries: 0,
     nextBoss: 9 + Math.floor(Math.random() * 4),
     tutorialQueue: meta.runs === 0 ? ["chest", "cat", "egg"] : []
@@ -131,6 +135,9 @@ function nextEvent() {
   run.posts++;
   tickPersistentItems();
   current = { ...weightedEvent(), resolved: false };
+  run.mascotReaction = null;
+  run.mascotMood = eventMood(current);
+  $("mascot").classList.remove("mascot-reacting");
   discover(current.id);
 
   $("card").className = "post-card" + (current.rarity === "RARO" ? " rare" : "");
@@ -158,6 +165,7 @@ function interact() {
   }
   run.streak++;
   run.maxStreak = Math.max(run.maxStreak, run.streak);
+  reactMascot("curious", 360);
   $("card").classList.add("interacting");
   setTimeout(() => $("card").classList.remove("interacting"), 320);
   current.effect();
@@ -167,6 +175,7 @@ function passEvent() {
   if (locked) return;
   if (current.resolved) { advance("up"); return; }
   run.streak = 0;
+  reactMascot("annoyed", 300);
   advance("left");
 }
 
@@ -179,6 +188,8 @@ function showOutcome(message, tone = "neutral", phase = null) {
   $("decisionHint").textContent = "Resultado revelado. Continue quando quiser.";
   $("interactBtn").textContent = "CONTINUAR";
   $("skipBtn").hidden = true;
+  run.mascotMood = tone === "good" ? "happy" : tone === "bad" ? "sad" : "curious";
+  reactMascot(tone === "good" ? (current.rarity === "RARO" ? "excited" : "happy") : tone === "bad" ? "frightened" : "curious", 900);
   if (tone === "good") spawnFx();
   render();
 }
@@ -359,10 +370,37 @@ function render() {
   const minutes = (17 + run.posts * 2) % 60;
   $("clock").textContent = `${String(2 + Math.floor((17 + run.posts * 2) / 60)).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   $("ruleHint").textContent = run.freePosts > 0 ? `${run.freePosts} post(s) sem custo de Energia.` : "Interaja ou passe. Cada avanço custa 5 de Energia.";
-  $("mascot").dataset.sprite = run.energy < 30 ? "sleepy" : run.streak >= 4 ? "happy" : "neutral";
+  renderMascot();
   document.body.classList.toggle("sleep-low", run.energy < 30);
   renderInventory();
   renderProgress();
+}
+
+function eventMood(event) {
+  if (["PERIGO"].includes(event.category)) return "suspicious";
+  if (["MISTÉRIO", "RARIDADE", "CRIATURA"].includes(event.category)) return "curious";
+  if (event.category === "DESCANSO") return "sleepy";
+  return "neutral";
+}
+
+function renderMascot() {
+  if (!run) return;
+  const state = run.mascotReaction || (run.energy < 25 ? "sleepy" : run.mascotMood || (run.streak >= 4 ? "happy" : "neutral"));
+  $("mascot").dataset.sprite = state;
+}
+
+function reactMascot(state, duration = 800) {
+  if (!run) return;
+  clearTimeout(run.reactionTimer);
+  run.mascotReaction = state;
+  $("mascot").classList.add("mascot-reacting");
+  renderMascot();
+  run.reactionTimer = setTimeout(() => {
+    if (!run) return;
+    run.mascotReaction = null;
+    $("mascot").classList.remove("mascot-reacting");
+    renderMascot();
+  }, duration);
 }
 
 function renderInventory() {

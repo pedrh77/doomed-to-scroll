@@ -60,17 +60,21 @@
 
 .mascot[data-sprite="neutral"] { background-position: 0 0; }
 .mascot[data-sprite="happy"] { background-position: 33.333% 0; animation-name: mascotHappy; animation-duration: .62s; }
-.mascot[data-sprite="suspicious"] { background-position: 100% 0; animation-name: mascotTilt; }
+.mascot[data-sprite="curious"] { background-position: 66.666% 0; animation-name: mascotTilt; }
+.mascot[data-sprite="suspicious"],
+.mascot[data-sprite="annoyed"] { background-position: 100% 0; animation-name: mascotTilt; }
 .mascot[data-sprite="sleepy"] { background-position: 0 100%; animation-name: mascotSleep; animation-duration: 2.8s; }
 .mascot[data-sprite="frightened"] { background-position: 33.333% 100%; animation-name: mascotShake; animation-duration: .38s; }
+.mascot[data-sprite="excited"] { background-position: 66.666% 100%; animation-name: mascotHappy; animation-duration: .48s; }
+.mascot[data-sprite="sad"] { background-position: 100% 100%; animation-name: mascotSleep; animation-duration: 2.2s; }
 
 /* Four-frame animated event rows */
 .event-sprite[data-sprite="chest"],
 .event-sprite[data-sprite="egg"],
 .event-sprite[data-sprite="dragon"],
 .event-sprite[data-sprite="cat"] {
-  background-image: url('assets/event-animations.png');
-  background-size: 400% 400%;
+  background-image: url('assets/event-animations-v2.png');
+  background-size: 440% 440%;
   width: min(72vw, 310px);
   aspect-ratio: 1.094;
   animation: eventFrames 1.15s steps(3, end) infinite, eventFloat 2.4s ease-in-out infinite;
@@ -293,17 +297,17 @@
   filter: drop-shadow(0 7px 7px #0008);
 }
 
-body:not([data-cosmetic="original"]) .mascot {
+body:not([data-cosmetic="original"]) .mascot:not(.mascot-reacting):not(.result-mascot) {
   background-image: url('assets/cosmetics.png');
   background-size: 400% 200%;
 }
 
-body[data-cosmetic="violet"] .mascot { background-position: 33.333% 0; }
-body[data-cosmetic="coral"] .mascot { background-position: 66.666% 0; }
-body[data-cosmetic="glitch"] .mascot { background-position: 100% 0; }
-body[data-cosmetic="wizard"] .mascot { background-position: 0 100%; }
-body[data-cosmetic="pajamas"] .mascot { background-position: 33.333% 100%; }
-body[data-cosmetic="crown"] .mascot { background-position: 66.666% 100%; }
-body[data-cosmetic="glasses"] .mascot { background-position: 100% 100%; }
+body[data-cosmetic="violet"] .mascot:not(.mascot-reacting):not(.result-mascot) { background-position: 33.333% 0; }
+body[data-cosmetic="coral"] .mascot:not(.mascot-reacting):not(.result-mascot) { background-position: 66.666% 0; }
+body[data-cosmetic="glitch"] .mascot:not(.mascot-reacting):not(.result-mascot) { background-position: 100% 0; }
+body[data-cosmetic="wizard"] .mascot:not(.mascot-reacting):not(.result-mascot) { background-position: 0 100%; }
+body[data-cosmetic="pajamas"] .mascot:not(.mascot-reacting):not(.result-mascot) { background-position: 33.333% 100%; }
+body[data-cosmetic="crown"] .mascot:not(.mascot-reacting):not(.result-mascot) { background-position: 66.666% 100%; }
+body[data-cosmetic="glasses"] .mascot:not(.mascot-reacting):not(.result-mascot) { background-position: 100% 100%; }
 
 .home-actions .ghost { margin-top: 8px; padding: 8px 16px; }
