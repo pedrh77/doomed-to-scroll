@@ -2,20 +2,26 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#090b25">
-  <title>Doomed to Scroll</title>
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="description" content="Só Mais Um — um roguelite mobile sobre saber a hora de parar.">
+  <meta property="og:title" content="Só Mais Um">
+  <meta property="og:description" content="Escolha um post. Proteja sua Energia. Saiba a hora de dormir.">
+  <meta property="og:image" content="assets/cover-so-mais-um.png">
+  <title>Só Mais Um</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="overrides.css">
+  <link rel="stylesheet" href="mobile-v2.css">
 </head>
 <body>
   <main id="app" aria-live="polite">
     <section id="home" class="screen active">
       <div class="stars"></div>
-      <div class="moon">☾</div>
       <div class="title-wrap">
         <p class="eyebrow">UMA NOITE. UM FEED. UMA PÉSSIMA IDEIA.</p>
-        <h1>DOOMED<br><span>TO SCROLL</span></h1>
+        <h1>SÓ<br><span>MAIS UM</span></h1>
       </div>
       <div class="bedroom">
         <div class="window"><i></i><i></i><i></i><i></i></div>
@@ -23,6 +29,7 @@
         <div class="sprite mascot hero" data-sprite="neutral"></div>
       </div>
       <div class="home-actions">
+        <p class="home-rule">Escolha um post. Cada avanço gasta 5 de Energia. Durma antes de zerar.</p>
         <button id="startBtn" class="primary">INICIAR NOITE</button>
         <div class="meta-row">
           <span>MOON COINS <b id="bankCoins">0</b></span>
@@ -35,27 +42,28 @@
 
     <section id="game" class="screen">
       <header class="hud">
-        <div class="night-time">☾ <span id="clock">02:17</span></div>
+        <div class="night-time"><span id="clock">02:17</span></div>
         <div class="sprite mascot" id="mascot" data-sprite="neutral"></div>
         <button id="stopBtn" class="stop">DORMIR</button>
       </header>
       <div class="meters">
-        <div class="meter-row"><span>SONO</span><div class="bar"><i id="sleepBar"></i></div><b id="sleepText">100</b></div>
-        <div class="meter-row temptation"><span>TENTAÇÃO</span><div class="bar"><i id="temptBar"></i></div><b id="temptText">1.0×</b></div>
+        <div class="meter-row"><span>ENERGIA</span><div class="bar"><i id="sleepBar"></i></div><b id="sleepText">100</b></div>
+        <p id="ruleHint" class="rule-hint">Interaja para ganhar. Passar também gasta 5 de Energia.</p>
       </div>
       <div class="run-stats">
-        <span>◉ <b id="runCoins">0</b></span><span>COMBO <b id="combo">0</b></span><span>POST <b id="post">1</b></span>
+        <span>MOEDAS <b id="runCoins">0</b></span><span>POST <b id="post">1</b></span>
       </div>
       <div id="feed" class="feed">
         <article id="card" class="post-card">
           <div class="card-top"><span id="rarity" class="rarity">COMUM</span><span id="category">CURIOSIDADE</span></div>
           <div class="art-stage"><div id="eventSprite" class="sprite event-sprite" data-sprite="chest"></div><div id="fx"></div></div>
-          <div class="card-copy"><h2 id="eventName">Baú suspeito</h2><p id="eventText">Tem dentes demais para um baú normal.</p></div>
+          <div class="card-copy"><h2 id="eventName">Baú suspeito</h2><p id="eventText">Tem dentes demais para um baú normal.</p><p id="decisionHint" class="decision-hint">Abra para descobrir se é seguro.</p></div>
           <div id="outcome" class="outcome"></div>
         </article>
-        <div class="gesture-hint"><span>← IGNORAR</span><span>TOQUE INTERAGIR</span><span>↑ PRÓXIMO</span></div>
-        <div class="actions"><button id="skipBtn" class="skip">IGNORAR</button><button id="interactBtn" class="interact">INTERAGIR</button><button id="nextBtn" class="next">PRÓXIMO</button></div>
+        <div class="gesture-hint"><span>Escolha uma ação</span><span>Deslize para passar</span></div>
+        <div class="actions"><button id="skipBtn" class="skip">PASSAR</button><button id="interactBtn" class="interact">ABRIR</button></div>
       </div>
+      <div id="progressTracker" class="progress-tracker" hidden></div>
       <footer class="inventory"><span class="inventory-label">MOCHILA</span><div id="slots"></div></footer>
     </section>
 
@@ -76,7 +84,7 @@
       <div class="result-card">
         <div><span>MOON COINS</span><b id="resultCoins">0</b></div>
         <div><span>PUBLICAÇÕES</span><b id="resultPosts">0</b></div>
-        <div><span>MAIOR COMBO</span><b id="resultCombo">0</b></div>
+        <div><span>MELHOR SEQUÊNCIA</span><b id="resultCombo">0</b></div>
         <div><span>NOVAS DESCOBERTAS</span><b id="resultDiscoveries">0</b></div>
       </div>
       <button id="againBtn" class="primary">NOVA NOITE</button>
@@ -84,18 +92,18 @@
     </section>
 
     <section id="collection" class="screen collection-screen">
-      <button id="collectionBack" class="back">‹</button><h2>DESCOBERTAS</h2>
+      <button id="collectionBack" class="back">VOLTAR</button><h2>DESCOBERTAS</h2>
       <p>O feed ainda esconde coisas que não querem ser encontradas.</p>
       <div id="collectionGrid" class="collection-grid"></div>
     </section>
     <section id="store" class="screen collection-screen store-screen">
-      <button id="storeBack" class="back">‹</button><h2>LOJA DE COSMÉTICOS</h2>
+      <button id="storeBack" class="back">VOLTAR</button><h2>LOJA DE COSMÉTICOS</h2>
       <p>Personalização visual. Nenhum bônus de gameplay.</p>
       <div class="store-wallet">MOON COINS <b id="storeCoins">0</b></div>
       <div id="storeGrid" class="store-grid"></div>
     </section>
     <div id="toast" class="toast"></div>
   </main>
-  <script src="app.js"></script>
+  <script src="game-v2.js"></script>
 </body>
 </html>

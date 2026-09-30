@@ -1,6 +1,6 @@
-# Doomed to Scroll
+# Só Mais Um
 
-Protótipo mobile-first em HTML, CSS e JavaScript puro.
+Roguelite mobile em pixel art sobre a tentação de ver só mais um post.
 
 ## Executar
 
