@@ -1,6 +1,6 @@
-# Só Mais Um
+# Doomed to Scroll
 
-Roguelite mobile em pixel art sobre a tentação de ver só mais um post.
+Roguelite casual mobile escondido em um feed vertical. Passe posts sem custo ou interaja para revelar eventos e minigames.
 
 ## Executar
 
@@ -14,16 +14,29 @@ Depois acesse `http://localhost:8080`.
 
 ## Controles
 
-- Toque/clique no card: interagir
-- Swipe para cima ou seta para cima: próximo post
-- Swipe para esquerda ou seta para esquerda: ignorar
-- Enter/espaço: interagir
+- Role ou deslize verticalmente: próximo post sem custo
+- Toque na ação lateral ou dê dois toques na imagem: interagir
+- Todos os minigames possuem controles visuais para toque e mouse
+- Cards de monstro iniciam uma contagem regressiva automática
+- Primeira partida apresenta um tutorial curto de três passos
 
 O progresso entre partidas usa `localStorage`.
 
 ## Conteúdo atual
 
-- Pixel art animada para mascote, eventos e bosses
-- Quatro bosses: Algoritmo, Loop Infinito, Rainha da Notificação e Insônia
+- 29 posts reais carregados de `assets/posts`
+- Cards configuráveis com cinco raridades e geração ponderada
+- Vida, Energia, moedas, progressão da noite e persistência local
+- 20 minigames de toque: Tap Challenge, Sequence, Timing, Swipe Direction, Hold, Reaction, Fake Button, Memory Grid, Trace, Balance, Drag Item, Sort, Rhythm, Lockpick, Dodge, Stop Signal, Multi-stage, Choice, Bargain e Sacrifice
+- Risco e recompensa visíveis antes de cada interação
+- Comentários contextuais e posts salvos de forma persistente
+- Escolhas capazes de alterar raridade, risco e custo dos próximos cards
+- Noites de 12 cards antes do chefe
+- Proteção contra interação e recompensa duplicadas
 - Loja com oito cosméticos puramente visuais
-- Interface sem emojis
+
+## Testes
+
+```powershell
+node --test tests/game-core.test.js
+```
