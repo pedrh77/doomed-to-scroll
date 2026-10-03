@@ -62,12 +62,13 @@
   class GameDirector {
     constructor(config) { this.config = config; }
     snapshot(run) {
-      const nightProgress = Math.min(1, run.cardsScrolled / this.config.bossAtCards);
+      const targetCards = run.targetCards || this.config.bossAtCards;
+      const nightProgress = Math.min(1, run.cardsScrolled / targetCards);
       return {
         nightProgress,
         difficulty: 1 + nightProgress * 0.55,
         rareBoost: nightProgress * 0.35 + (run.feedEffects?.rareBoost || 0),
-        bossReady: run.cardsScrolled >= this.config.bossAtCards
+        bossReady: run.cardsScrolled >= targetCards
       };
     }
     tuneInteraction(interaction, run, raritySettings = {}) {
@@ -129,6 +130,9 @@
       evolution: {},
       feedEffects: { rareBoost: 0, energyDiscount: 0, safeCards: 0, remaining: 0 },
       startedAt: Date.now(),
+      night: 1,
+      targetCards: config.bossAtCards,
+      endedReason: null,
       ended: false
     };
   }
@@ -165,6 +169,8 @@
       applied.evolution = { id, stage: run.evolution[id] };
     }
     if (run.health <= 0) run.ended = true;
+    if (run.health <= 0) run.endedReason = "health";
+    if (run.energy <= 0) { run.energy = 0; run.ended = true; run.endedReason = "energy"; }
     return applied;
   }
 
@@ -204,15 +210,17 @@
     return { ok: true, applied };
   }
 
-  function skipCard(run, card, recentLimit) {
+  function skipCard(run, card, recentLimit, scrollEnergyCost = 0) {
     if (!card || card.state !== CARD_STATES.VISIBLE) return false;
     card.state = CARD_STATES.SKIPPED;
-    recordScroll(run, card, recentLimit);
+    recordScroll(run, card, recentLimit, scrollEnergyCost);
     return true;
   }
 
-  function recordScroll(run, card, recentLimit) {
+  function recordScroll(run, card, recentLimit, scrollEnergyCost = 0) {
     run.cardsScrolled++;
+    run.energy = Math.max(0, run.energy - Math.max(0, scrollEnergyCost));
+    if (run.energy <= 0) { run.ended = true; run.endedReason = "energy"; }
     if (!run.seenCards.includes(card.id)) run.seenCards.push(card.id);
     run.recentCards.push(card.id);
     if (run.recentCards.length > recentLimit) run.recentCards.splice(0, run.recentCards.length - recentLimit);
@@ -230,7 +238,14 @@
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   }
 
-  const api = { CARD_STATES, CardRegistry, FeedGenerator, GameDirector, weightedPick, rollRarity, createRunState, applyEffects, applyFutureEffects, canInteract, beginInteraction, resolveCard, skipCard, recordScroll, nightTime };
+  function nightTarget(config, night = 1) {
+    const base = config.bossAtCards;
+    const step = config.cardsPerNightStep || 0;
+    const limit = config.maxCardsPerNight || Number.POSITIVE_INFINITY;
+    return Math.min(limit, base + Math.max(0, night - 1) * step);
+  }
+
+  const api = { CARD_STATES, CardRegistry, FeedGenerator, GameDirector, weightedPick, rollRarity, createRunState, applyEffects, applyFutureEffects, canInteract, beginInteraction, resolveCard, skipCard, recordScroll, nightTime, nightTarget };
   global.DtsCore = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

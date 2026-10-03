@@ -204,7 +204,7 @@ button:disabled { cursor: not-allowed; opacity: .46; filter: saturate(.45); }
 /* Game shell and HUD */
 #game.active {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   background:
     radial-gradient(circle at 50% -15%, rgba(112, 69, 255, .28), transparent 44%),
     linear-gradient(180deg, #071126, #030817 62%, #020611);
@@ -286,6 +286,28 @@ button:disabled { cursor: not-allowed; opacity: .46; filter: saturate(.45); }
   box-shadow: 0 0 8px rgba(53, 217, 255, .75);
 }
 
+.energy-meter {
+  height: 9px;
+  overflow: hidden;
+  border: 1px solid #4760a8;
+  border-radius: 999px;
+  background: #07102b;
+  box-shadow: inset 0 1px 3px #000;
+}
+
+.energy-meter i {
+  display: block;
+  width: 70%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #126bff, var(--cyan));
+  box-shadow: 0 0 9px rgba(53, 217, 255, .8);
+  transition: width .3s ease;
+}
+
+.energy-meter.energy-drain { animation: energyDrain .4s ease-out; }
+.energy-meter.energy-gain { animation: energyGain .4s ease-out; }
+
 .hearts { display: flex; gap: 7px; padding-left: 2px; }
 
 .hearts i {
@@ -360,6 +382,14 @@ button:disabled { cursor: not-allowed; opacity: .46; filter: saturate(.45); }
 .post-card.failure { animation: failFlash .38s linear; }
 .post-card.success { animation: successPulse .42s ease-out; }
 .post-card.scroll-away { opacity: 0; transform: translateY(-24%) scale(.96); }
+.post-card.card-enter { opacity: 0; transform: translateY(32px) scale(.97); }
+.post-card.dragging {
+  opacity: var(--drag-opacity, 1);
+  transform: translateY(var(--drag-y, 0));
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.post-card.dragging #postImage { transform: scale(1.035); }
+.post-card.swipe-ready { border-color: var(--cyan); box-shadow: 0 0 28px rgba(53,217,255,.48), var(--shadow-panel); }
 
 .card-top {
   z-index: 2;
@@ -387,7 +417,7 @@ button:disabled { cursor: not-allowed; opacity: .46; filter: saturate(.45); }
   background:
     radial-gradient(circle at 50% 45%, rgba(41, 182, 255, .16), transparent 52%),
     var(--panel-deep);
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .art-stage::after {
@@ -409,6 +439,7 @@ button:disabled { cursor: not-allowed; opacity: .46; filter: saturate(.45); }
   object-position: center;
   user-select: none;
   -webkit-user-drag: none;
+  transition: transform .24s ease, filter .24s ease;
 }
 
 .card-copy {
@@ -1074,8 +1105,37 @@ button:disabled { cursor: not-allowed; opacity: .46; filter: saturate(.45); }
 .boss-stop { width: auto; height: auto; min-width: 0; min-height: 44px; margin-top: auto; padding: 9px 13px; border-radius: var(--radius-md); }
 
 /* Utility UI */
-.inventory,
 .progress-tracker { display: none !important; }
+
+.inventory {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 54px;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px calc(6px + var(--safe-bottom));
+  border-top: 1px solid rgba(64, 78, 157, .65);
+  background: linear-gradient(180deg, #0a1537, #050b20);
+  box-shadow: 0 -6px 18px rgba(0,0,0,.28);
+}
+
+.inventory-label { color: var(--gold); font: 400 8px/1.25 "Press Start 2P", monospace; }
+.inventory-label small { display: block; margin-top: 4px; color: #7f91c6; font: 600 8px/1 "Pixelify Sans", sans-serif; }
+#slots { display: flex; min-width: 0; gap: 6px; overflow-x: auto; }
+#slots button {
+  min-width: 108px;
+  min-height: 40px;
+  padding: 5px 8px;
+  border: 1px solid var(--purple-light);
+  border-radius: 8px;
+  background: #171d4c;
+  color: #fff;
+  text-align: left;
+  animation: itemSlotIn .3s ease-out;
+}
+#slots button b { display: block; color: var(--gold); font-size: 9px; }
+#slots button small { display: block; margin-top: 2px; color: #b5c0df; font-size: 8px; }
+.empty-slot { display: grid; min-width: 74px; height: 34px; place-items: center; border: 1px dashed #3d4d86; border-radius: 7px; color: #6676a6; font-size: 9px; }
 
 .toast {
   position: absolute;
@@ -1120,6 +1180,9 @@ button:disabled { cursor: not-allowed; opacity: .46; filter: saturate(.45); }
 @keyframes swipePrompt { from { transform: scale(.4); opacity: .2; } }
 @keyframes encounterPulse { from { opacity: .25; transform: scale(.5); } 70% { opacity: 1; transform: scale(1.15); } to { transform: scale(1); } }
 @keyframes bossPulse { 50% { transform: scale(1.035); filter: drop-shadow(0 0 32px var(--red)); } }
+@keyframes energyDrain { 35% { border-color: var(--red); box-shadow: 0 0 15px rgba(255,63,104,.75); transform: scaleY(1.35); } }
+@keyframes energyGain { 35% { border-color: var(--green); box-shadow: 0 0 15px rgba(55,233,138,.75); transform: scaleY(1.35); } }
+@keyframes itemSlotIn { from { opacity: 0; transform: translateY(9px) scale(.94); } }
 
 /* Responsive */
 @media (max-height: 680px) {

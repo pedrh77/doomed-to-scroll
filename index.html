@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&amp;family=Press+Start+2P&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=game-ui-7">
+  <link rel="stylesheet" href="styles.css?v=game-ui-9">
 </head>
 <body>
   <main id="app" aria-live="polite">
@@ -30,7 +30,7 @@
         <div class="sprite mascot hero" data-sprite="neutral"></div>
       </div>
       <div class="home-actions">
-        <p class="home-rule">Role sem custo. Cada card oferece uma ação diferente.</p>
+        <p class="home-rule">Rolar gasta pouca Energia. Interagir gasta mais e pode trazer recompensas.</p>
         <button id="startBtn" class="game-button game-button-primary">ABRIR O FEED</button>
         <div class="meta-row">
           <span>MOON COINS <b id="bankCoins">0</b></span>
@@ -44,13 +44,13 @@
     <section id="game" class="screen">
       <header class="hud game-hud">
         <div class="night-time"><span id="clock">03:17</span><small>NOITE</small></div>
-        <div class="hud-resource energy-resource"><span>ENERGIA <b id="energyValue">7/10</b></span><div class="pips" id="energyPips"></div></div>
+        <div class="hud-resource energy-resource"><span>ENERGIA <b id="energyValue">7/10</b></span><div class="energy-meter" id="energyPips"><i id="energyFill"></i></div></div>
         <div class="sprite mascot" id="mascot" data-sprite="neutral"></div>
         <div class="hud-resource health-resource"><span>VIDA <b id="healthValue">3/3</b></span><div class="hearts" id="healthHearts"></div></div>
         <button id="stopBtn" class="stop" aria-label="Encerrar noite">SAIR</button>
       </header>
       <div class="run-stats">
-        <span>MOEDAS <b id="runCoins">0</b></span><span>POST <b id="post">1</b></span><span>NOITE <b id="nightPercent">0%</b></span>
+        <span>MOEDAS <b id="runCoins">0</b></span><span>POST <b id="post">1</b></span><span>NOITE <b id="nightNumber">1</b></span><span>META <b id="nightPercent">0/15</b></span>
       </div>
       <div id="feed" class="feed">
         <article id="card" class="post-card game-card neon-card" tabindex="0">
@@ -81,7 +81,7 @@
         <div class="gesture-hint"><span>ROLE PARA CONTINUAR</span><span>AÇÃO LATERAL OU DOIS TOQUES</span></div>
       </div>
       <div id="progressTracker" class="progress-tracker" hidden></div>
-      <footer class="inventory"><span class="inventory-label">MOCHILA</span><div id="slots"></div></footer>
+      <footer class="inventory"><span class="inventory-label">MOCHILA <small>TOQUE PARA USAR</small></span><div id="slots"></div></footer>
       <div id="tutorialOverlay" class="tutorial-overlay" hidden>
         <section class="tutorial-panel game-panel" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
           <div id="tutorialIcon" class="tutorial-icon" aria-hidden="true">01</div>
@@ -131,9 +131,9 @@
     </section>
     <div id="toast" class="toast"></div>
   </main>
-  <script src="game-config.js?v=game-ui-7"></script>
-  <script src="game-core.js?v=game-ui-7"></script>
-  <script src="minigames.js?v=game-ui-7"></script>
-  <script src="game-v2.js?v=game-ui-7"></script>
+  <script src="game-config.js?v=game-ui-9"></script>
+  <script src="game-core.js?v=game-ui-9"></script>
+  <script src="minigames.js?v=game-ui-9"></script>
+  <script src="game-v2.js?v=game-ui-9"></script>
 </body>
 </html>

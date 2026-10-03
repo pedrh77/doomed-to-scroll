@@ -56,6 +56,14 @@
   });
 
   const CARD_CONFIG = {
+    "7DFA842D-9DC6-4AA9-8D78-4C0B80CB8080.jpeg": {
+      id: "neon-slime", title: "Slime faminto", description: "Ele percebeu que você parou para olhar.", type: "ENEMY", rarity: "COMMON", weight: 10, energyCost: 1,
+      interaction: { type: "TAP_CHALLENGE", duration: 7, target: 15 }, success: { coins: 18, message: "+18 MOEDAS" }, failure: { health: -1, message: "O slime drenou sua força. -1 VIDA" }
+    },
+    "A5D7A056-C94C-4E13-8C57-E4059E2CA19C.jpeg": {
+      id: "lost-ghost", title: "Fantasma perdido", description: "Ele repete seus movimentos no escuro.", type: "ENEMY", rarity: "UNCOMMON", weight: 8, energyCost: 2,
+      interaction: { type: "MEMORY_GRID", duration: 11, preview: 2700, length: 4 }, success: { coins: 26, message: "+26 MOEDAS" }, failure: { health: -1, message: "O fantasma atravessou você. -1 VIDA" }
+    },
     "Gato mágico sob a lua crescente.png": {
       id: "moon-cat", title: "Gatinho da madrugada", description: "Ele já descobriu como descansar.", type: "NORMAL", rarity: "COMMON", weight: 14, energyCost: 0,
       interaction: { type: "INSTANT" }, success: { message: "Ele acordou, piscou e voltou a dormir." }
@@ -167,7 +175,10 @@
     maxEnergy: 10,
     startingHealth: 3,
     startingEnergy: 7,
-    bossAtCards: 12,
+    bossAtCards: 15,
+    cardsPerNightStep: 3,
+    maxCardsPerNight: 30,
+    scrollEnergyCost: 0.25,
     recentCardLimit: 5,
     maxEnemiesInRecent: 2,
     maxSpecialsInRecent: 2,

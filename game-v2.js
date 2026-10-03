@@ -5,11 +5,12 @@ const SAVE_KEY = "doomed-to-scroll-v2";
 const { POST_ROOT, POST_ASSETS, CARD_CONFIG, GAME_CONFIG } = DtsConfig;
 const {
   CARD_STATES, CardRegistry, FeedGenerator, GameDirector, createRunState,
-  beginInteraction, resolveCard, applyEffects, applyFutureEffects, skipCard, recordScroll, nightTime
+  beginInteraction, resolveCard, applyEffects, applyFutureEffects, skipCard, recordScroll, nightTime, nightTarget
 } = DtsCore;
 
 const DEFAULT_META = {
   coins: 0, discoveries: [], bestProgress: 0, runs: 0,
+  night: 1,
   ownedCosmetics: ["original"], equippedCosmetic: "original",
   savedPosts: [],
   tutorialSeen: false,
@@ -45,6 +46,13 @@ const COMMENT_BANK = Object.freeze({
   DEFAULT: ["como isso chegou no meu feed?", "salvei para ver depois", "tem alguma coisa escondida aqui"]
 });
 
+const ITEM_ACTIONS = Object.freeze({
+  espada: { label: "ESPADA", detail: "3 posts com custo menor", use: (state) => applyFutureEffects(state, { energyDiscount: 1, duration: 3 }) },
+  mochila: { label: "SUPRIMENTOS", detail: "+3 Energia", use: (state) => applyEffects(state, { energy: 3 }) },
+  ampulheta: { label: "AMPULHETA", detail: "3 posts sem inimigos", use: (state) => applyFutureEffects(state, { safeCards: 3 }) },
+  capa: { label: "CAPA", detail: "4 posts sem inimigos", use: (state) => applyFutureEffects(state, { safeCards: 4 }) }
+});
+
 const registry = new CardRegistry(POST_ASSETS, CARD_CONFIG, POST_ROOT);
 const director = new GameDirector(GAME_CONFIG);
 const generator = new FeedGenerator(registry, GAME_CONFIG, director);
@@ -58,11 +66,12 @@ let gestureStart = null;
 let lastTapAt = 0;
 let wheelLocked = false;
 let tutorialIndex = 0;
+let lastRenderedEnergy = null;
 
 const TUTORIAL_STEPS = [
-  { icon: "01", title: "ROLE O FEED", text: "Deslize para cima ou para baixo. Passar um post não gasta Energia." },
+  { icon: "01", title: "ROLE O FEED", text: "Deslize para cima ou para baixo. Cada novo post gasta 0,25 de Energia." },
   { icon: "02", title: "ESCOLHA A AÇÃO", text: "O botão lateral muda conforme o card. Dois toques na imagem também executam a ação." },
-  { icon: "03", title: "POUPE ENERGIA", text: "Veja risco e recompensa antes de agir. Monstros iniciam disputas automaticamente." }
+  { icon: "03", title: "POUPE ENERGIA", text: "Cada rolagem gasta um pouco. Interações gastam mais. Monstros iniciam disputas automaticamente." }
 ];
 
 function loadSave() {
@@ -103,10 +112,13 @@ function discover(id) {
 function newRun() {
   miniGames.cancel();
   run = createRunState(GAME_CONFIG);
+  run.night = Math.max(1, Number(meta.night) || 1);
+  run.targetCards = nightTarget(GAME_CONFIG, run.night);
   run.tutorialPending = !meta.tutorialSeen;
   tutorialIndex = 0;
   current = null;
   transitionLocked = false;
+  lastRenderedEnergy = null;
   document.body.classList.remove("critical-health");
   showScreen("game");
   nextCard();
@@ -115,6 +127,7 @@ function newRun() {
 function nextCard() {
   if (!run || run.ended) { endRun(false); return; }
   miniGames.cancel();
+  if (director.snapshot(run).bossReady) { completeNight(); return; }
   current = generator.next(run);
   if (!current) { endRun(true); return; }
   discover(current.id);
@@ -127,6 +140,8 @@ function nextCard() {
 function renderCard() {
   const action = CARD_ACTIONS[current.type] || CARD_ACTIONS.NORMAL;
   $("card").className = `post-card rarity-${current.rarity.toLowerCase()}`;
+  $("card").classList.add("card-enter");
+  requestAnimationFrame(() => requestAnimationFrame(() => $("card").classList.remove("card-enter")));
   $("postImage").src = current.image;
   $("postImage").alt = current.title;
   $("eventName").textContent = current.title;
@@ -236,13 +251,45 @@ function renderHud() {
   $("runCoins").textContent = run.coins;
   $("post").textContent = run.cardsScrolled + 1;
   const state = director.snapshot(run);
-  $("nightPercent").textContent = `${Math.round(state.nightProgress * 100)}%`;
-  $("energyValue").textContent = `${run.energy}/${run.maxEnergy}`;
+  $("nightNumber").textContent = run.night;
+  $("nightPercent").textContent = `${Math.min(run.cardsScrolled, run.targetCards)}/${run.targetCards}`;
+  $("energyValue").textContent = `${formatEnergy(run.energy)}/${run.maxEnergy}`;
   $("healthValue").textContent = `${run.health}/${run.maxHealth}`;
-  $("energyPips").innerHTML = Array.from({ length: run.maxEnergy }, (_, index) => `<i class="${index < run.energy ? "full" : ""}"></i>`).join("");
+  $("energyFill").style.width = `${Math.max(0, run.energy / run.maxEnergy * 100)}%`;
+  const meter = $("energyPips");
+  meter.classList.remove("energy-drain", "energy-gain");
+  if (lastRenderedEnergy !== null && run.energy !== lastRenderedEnergy) {
+    meter.classList.add(run.energy < lastRenderedEnergy ? "energy-drain" : "energy-gain");
+    setTimeout(() => meter.classList.remove("energy-drain", "energy-gain"), 420);
+  }
+  lastRenderedEnergy = run.energy;
   $("healthHearts").innerHTML = Array.from({ length: run.maxHealth }, (_, index) => `<i class="${index < run.health ? "full" : ""}" aria-hidden="true"></i>`).join("");
   $("mascot").dataset.sprite = run.health <= 1 ? "frightened" : run.energy <= 2 ? "sleepy" : current && current.type === "ENEMY" ? "curious" : "neutral";
   document.body.classList.toggle("critical-health", run.health <= 1);
+  renderInventory();
+}
+
+function formatEnergy(value) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0$/, "");
+}
+
+function renderInventory() {
+  if (!run) return;
+  const items = run.items.filter((id) => ITEM_ACTIONS[id]);
+  $("slots").innerHTML = items.length
+    ? items.map((id) => `<button data-item="${id}"><b>${ITEM_ACTIONS[id].label}</b><small>${ITEM_ACTIONS[id].detail}</small></button>`).join("")
+    : `<span class="empty-slot">VAZIA</span>`;
+}
+
+function useInventoryItem(id) {
+  if (!run || transitionLocked) return;
+  const item = ITEM_ACTIONS[id];
+  const index = run.items.indexOf(id);
+  if (!item || index < 0) return;
+  item.use(run);
+  run.items.splice(index, 1);
+  toast(`${item.label} USADA`);
+  renderHud();
 }
 
 function showHeartFeedback() {
@@ -323,8 +370,8 @@ function describeResult(configured = {}, applied = {}) {
 function skipOrContinue() {
   if (!run || !current || transitionLocked || !$("miniGameOverlay").hidden || !$("tutorialOverlay").hidden) return;
   if (current.state === CARD_STATES.INTERACTING) return;
-  if (current.state === CARD_STATES.VISIBLE) skipCard(run, current, GAME_CONFIG.recentCardLimit);
-  else if (current.state === CARD_STATES.RESOLVED) recordScroll(run, current, GAME_CONFIG.recentCardLimit);
+  if (current.state === CARD_STATES.VISIBLE) skipCard(run, current, GAME_CONFIG.recentCardLimit, GAME_CONFIG.scrollEnergyCost);
+  else if (current.state === CARD_STATES.RESOLVED) recordScroll(run, current, GAME_CONFIG.recentCardLimit, GAME_CONFIG.scrollEnergyCost);
   else return;
 
   transitionLocked = true;
@@ -337,18 +384,28 @@ function skipOrContinue() {
   }, 300);
 }
 
-function endRun(voluntary) {
+function completeNight() {
+  if (!run || run.ended) return;
+  meta.night = run.night + 1;
+  endRun(false, true);
+}
+
+function endRun(voluntary, completed = false) {
   if (!run) return;
   miniGames.cancel();
   $("tutorialOverlay").hidden = true;
   run.ended = true;
-  const keptCoins = voluntary ? run.coins : Math.ceil(run.coins * 0.7);
+  const keptCoins = voluntary || completed ? run.coins : Math.ceil(run.coins * 0.7);
   meta.coins += keptCoins;
   meta.bestProgress = Math.max(meta.bestProgress, run.cardsScrolled);
   meta.runs++;
   save();
-  $("resultTitle").textContent = voluntary ? "VOCÊ FECHOU O FEED" : "A NOITE VENCEU";
-  $("resultSubtitle").textContent = voluntary ? "O algoritmo perdeu sua atenção. Por enquanto." : "A madrugada cobrou o último coração.";
+  $("resultTitle").textContent = completed ? `NOITE ${run.night} CONCLUÍDA` : voluntary ? "VOCÊ FECHOU O FEED" : "A NOITE VENCEU";
+  $("resultSubtitle").textContent = completed
+    ? `Próxima noite: ${nightTarget(GAME_CONFIG, run.night + 1)} posts.`
+    : voluntary
+      ? "O algoritmo perdeu sua atenção. Por enquanto."
+      : run.endedReason === "energy" ? "Sua Energia acabou antes do amanhecer." : "A madrugada cobrou o último coração.";
   $("resultCoins").textContent = keptCoins;
   $("resultPosts").textContent = run.cardsScrolled;
   $("resultCombo").textContent = run.cardsInteracted;
@@ -433,6 +490,49 @@ function handleTapGesture(event) {
   else lastTapAt = now;
 }
 
+function resetCardDrag() {
+  const card = $("card");
+  card.classList.remove("dragging", "swipe-ready");
+  card.style.removeProperty("--drag-y");
+  card.style.removeProperty("--drag-opacity");
+}
+
+function handleCardPointerDown(event) {
+  if (event.target.closest(".social-actions") || !$('miniGameOverlay').hidden || transitionLocked) {
+    gestureStart = null;
+    return;
+  }
+  gestureStart = { x: event.clientX, y: event.clientY, time: performance.now(), pointerId: event.pointerId };
+  $("artStage").setPointerCapture?.(event.pointerId);
+  $("card").classList.add("dragging");
+}
+
+function handleCardPointerMove(event) {
+  if (!gestureStart || gestureStart.pointerId !== event.pointerId) return;
+  const dx = event.clientX - gestureStart.x;
+  const dy = event.clientY - gestureStart.y;
+  if (Math.abs(dy) <= Math.abs(dx)) return;
+  event.preventDefault();
+  const dragY = Math.max(-170, Math.min(24, dy));
+  $("card").style.setProperty("--drag-y", `${dragY}px`);
+  $("card").style.setProperty("--drag-opacity", String(Math.max(.42, 1 - Math.abs(Math.min(0, dragY)) / 260)));
+  $("card").classList.toggle("swipe-ready", dy < -58);
+}
+
+function handleCardPointerUp(event) {
+  if (!gestureStart || gestureStart.pointerId !== event.pointerId) { resetCardDrag(); return; }
+  const dx = event.clientX - gestureStart.x;
+  const dy = event.clientY - gestureStart.y;
+  if (dy < -58 && Math.abs(dy) > Math.abs(dx)) {
+    gestureStart = null;
+    resetCardDrag();
+    skipOrContinue();
+    return;
+  }
+  resetCardDrag();
+  handleTapGesture(event);
+}
+
 $("startBtn").addEventListener("click", newRun);
 $("againBtn").addEventListener("click", newRun);
 $("stopBtn").addEventListener("click", () => endRun(true));
@@ -454,32 +554,20 @@ $("saveBtn").addEventListener("click", () => {
   save();
   renderEngagement();
 });
+$("slots").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-item]");
+  if (button) useInventoryItem(button.dataset.item);
+});
 $("tutorialNext").addEventListener("click", advanceTutorial);
 $("collectionBtn").addEventListener("click", () => { renderCollection(); showScreen("collection"); });
 $("collectionBack").addEventListener("click", () => showScreen("home"));
 $("storeBtn").addEventListener("click", () => { renderStore(); showScreen("store"); });
 $("storeBack").addEventListener("click", () => showScreen("home"));
 
-$("artStage").addEventListener("pointerdown", (event) => {
-  if (event.target.closest(".social-actions")) { gestureStart = null; return; }
-  gestureStart = { x: event.clientX, y: event.clientY, time: performance.now() };
-});
-$("artStage").addEventListener("pointerup", handleTapGesture);
-
-$("feed").addEventListener("touchstart", (event) => {
-  if (!event.touches.length) return;
-  gestureStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, time: performance.now() };
-}, { passive: true });
-
-$("feed").addEventListener("touchend", (event) => {
-  if (!gestureStart || !event.changedTouches.length || !$("miniGameOverlay").hidden) return;
-  const dx = event.changedTouches[0].clientX - gestureStart.x;
-  const dy = event.changedTouches[0].clientY - gestureStart.y;
-  if (Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx)) {
-    gestureStart = null;
-    skipOrContinue();
-  }
-}, { passive: true });
+$("artStage").addEventListener("pointerdown", handleCardPointerDown);
+$("artStage").addEventListener("pointermove", handleCardPointerMove);
+$("artStage").addEventListener("pointerup", handleCardPointerUp);
+$("artStage").addEventListener("pointercancel", () => { gestureStart = null; resetCardDrag(); });
 
 $("feed").addEventListener("wheel", (event) => {
   if (wheelLocked || Math.abs(event.deltaY) < 18) return;

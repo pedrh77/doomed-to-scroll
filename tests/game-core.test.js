@@ -10,7 +10,8 @@ const registry = new core.CardRegistry(config.POST_ASSETS, config.CARD_CONFIG, c
 
 test("registry loads every real post and gives unknown assets a NORMAL fallback", () => {
   assert.equal(registry.all().length, config.POST_ASSETS.length);
-  const unknown = registry.all().find((card) => card.filename.startsWith("7DFA"));
+  const fallbackRegistry = new core.CardRegistry(["0F0F0F0F-1111-2222-3333-444444444444.jpeg"], {}, config.POST_ROOT);
+  const unknown = fallbackRegistry.all()[0];
   assert.equal(unknown.type, "NORMAL");
   assert.equal(unknown.rarity, "COMMON");
   assert.equal(unknown.title, "Post misterioso");
@@ -119,4 +120,24 @@ test("choices can alter the following feed cards for a limited duration", () => 
   core.recordScroll(run, registry.get("moon-cat"), config.GAME_CONFIG.recentCardLimit);
   assert.equal(run.feedEffects.remaining, 0);
   assert.equal(run.feedEffects.rareBoost, 0);
+});
+
+test("slime and ghost are automatic enemy encounters", () => {
+  assert.equal(registry.get("neon-slime").type, "ENEMY");
+  assert.equal(registry.get("lost-ghost").type, "ENEMY");
+  assert.notEqual(registry.get("neon-slime").interaction.type, "INSTANT");
+  assert.notEqual(registry.get("lost-ghost").interaction.type, "INSTANT");
+});
+
+test("scrolling drains a small amount of energy", () => {
+  const run = core.createRunState(config.GAME_CONFIG);
+  const before = run.energy;
+  core.recordScroll(run, registry.get("moon-cat"), config.GAME_CONFIG.recentCardLimit, config.GAME_CONFIG.scrollEnergyCost);
+  assert.equal(run.energy, before - 0.25);
+});
+
+test("night target starts at 15 and increases by three", () => {
+  assert.equal(core.nightTarget(config.GAME_CONFIG, 1), 15);
+  assert.equal(core.nightTarget(config.GAME_CONFIG, 2), 18);
+  assert.equal(core.nightTarget(config.GAME_CONFIG, 20), 30);
 });
