@@ -34,9 +34,19 @@ O progresso entre partidas usa `localStorage`.
 - Risco e recompensa visíveis antes de cada interação
 - Comentários contextuais e posts salvos de forma persistente
 - Escolhas capazes de alterar raridade, risco e custo dos próximos cards
+- Dez efeitos temporários com duração visível: Foco, Adrenalina, Sorte, Maldição, Sono pesado, Feed acelerado, Eco, Glitch, Silêncio e Fome
+- Feed acelerado, Eco e Silêncio podem ser comprados com o mercador usando moedas da partida
 - Noite 1 com 15 posts; cada noite seguinte adiciona 3, até o limite de 30
 - Slime, fantasma, bruxa e outros inimigos iniciam disputas automáticas
 - Animações de entrada, arrasto, Energia, recompensa e inventário
+- Custo de Energia mostrado durante o arrasto, com fim automático abaixo de `0,75`
+- Sons sintetizados para gestos, disputas, Energia, itens, monstros e chefe
+- Slime, fantasma, bruxa, aranha, esqueleto e dragão possuem regras próprias
+- Chefe real com três fases no fim de cada noite
+- Cards salvos têm mais chance de reaparecer; comentários trazem pistas contextuais
+- Mochila começa com 3 espaços e a Bolsa Mágica libera 6, com painel de explicação para cada item
+- Monstros e ladrão aparecem em tela antes da contagem do embate
+- Chefes alternam entre quatro imagens corrigidas; derrota reinicia progresso na noite 1
 - Proteção contra interação e recompensa duplicadas
 - Loja com oito cosméticos puramente visuais
 

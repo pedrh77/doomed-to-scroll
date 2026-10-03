@@ -3,6 +3,59 @@
 (function exposeCore(global) {
   const CARD_STATES = Object.freeze({ VISIBLE: "VISIBLE", INTERACTING: "INTERACTING", RESOLVED: "RESOLVED", SKIPPED: "SKIPPED" });
   const SPECIAL_TYPES = new Set(["CHEST", "RISK", "MYSTERY", "EVOLUTION"]);
+  const STATUS_TRIGGERS = Object.freeze({
+    focus: "interaction", adrenaline: "interaction", luck: "post", curse: "interaction",
+    heavySleep: "interaction", acceleratedFeed: "interaction", echo: "resolution",
+    glitch: "post", silence: "post", hunger: "interaction"
+  });
+
+  function getStatus(run, id) { return run?.statuses?.[id] || null; }
+  function hasStatus(run, id) { return Boolean(getStatus(run, id)?.remaining > 0); }
+
+  function applyStatuses(run, statuses = {}) {
+    if (!run.statuses) run.statuses = {};
+    Object.entries(statuses).forEach(([id, duration]) => {
+      const remaining = Math.max(0, Math.floor(Number(duration) || 0));
+      if (!remaining) return;
+      const current = getStatus(run, id);
+      run.statuses[id] = {
+        remaining: Math.max(current?.remaining || 0, remaining),
+        trigger: STATUS_TRIGGERS[id] || "post",
+        grantedAtScroll: run.cardsScrolled
+      };
+    });
+    return run.statuses;
+  }
+
+  function consumeStatus(run, id, amount = 1) {
+    const status = getStatus(run, id);
+    if (!status) return false;
+    status.remaining = Math.max(0, status.remaining - amount);
+    if (!status.remaining) delete run.statuses[id];
+    return true;
+  }
+
+  function tickStatuses(run, trigger) {
+    Object.entries(run.statuses || {}).forEach(([id, status]) => {
+      if (status.trigger !== trigger) return;
+      if (trigger === "post" && status.grantedAtScroll === run.cardsScrolled - 1) {
+        delete status.grantedAtScroll;
+        return;
+      }
+      consumeStatus(run, id);
+    });
+  }
+
+  function scaleNumericEffects(effects = {}, multiplier = 1, positivesOnly = false) {
+    const scaled = { ...effects };
+    ["health", "energy", "coins"].forEach((key) => {
+      if (!Number.isFinite(scaled[key]) || (positivesOnly && scaled[key] <= 0)) return;
+      scaled[key] = scaled[key] < 0
+        ? Math.floor(scaled[key] * multiplier)
+        : Math.ceil(scaled[key] * multiplier);
+    });
+    return scaled;
+  }
 
   function slugify(value) {
     return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -64,10 +117,11 @@
     snapshot(run) {
       const targetCards = run.targetCards || this.config.bossAtCards;
       const nightProgress = Math.min(1, run.cardsScrolled / targetCards);
+      const nightDifficulty = Math.min(.8, Math.max(0, (run.night - 1) * .08));
       return {
         nightProgress,
-        difficulty: 1 + nightProgress * 0.55,
-        rareBoost: nightProgress * 0.35 + (run.feedEffects?.rareBoost || 0),
+        difficulty: 1 + nightProgress * 0.5 + nightDifficulty,
+        rareBoost: nightProgress * 0.35 + (run.feedEffects?.rareBoost || 0) + (hasStatus(run, "luck") ? 1.25 : 0),
         bossReady: run.cardsScrolled >= targetCards
       };
     }
@@ -77,6 +131,16 @@
       if (Number.isFinite(tuned.target)) tuned.target = Math.max(1, Math.round(tuned.target * difficulty));
       if (Number.isFinite(tuned.length)) tuned.length = Math.min(7, Math.max(2, Math.round(tuned.length * Math.min(1.3, difficulty))));
       if (Number.isFinite(tuned.rounds)) tuned.rounds = Math.min(7, Math.max(2, Math.round(tuned.rounds * Math.min(1.25, difficulty))));
+      if (Number.isFinite(tuned.duration)) tuned.duration /= Math.min(1.45, difficulty);
+      if (hasStatus(run, "focus") && tuned.type === "TIMING") tuned.zoneSize = Math.min(.65, (tuned.zoneSize || .28) + .2);
+      if (hasStatus(run, "heavySleep")) {
+        if (Number.isFinite(tuned.duration)) tuned.duration *= 1.35;
+        tuned.pace = .72;
+      }
+      if (hasStatus(run, "acceleratedFeed")) {
+        if (Number.isFinite(tuned.duration)) tuned.duration *= .72;
+        tuned.pace = 1.35;
+      }
       return tuned;
     }
   }
@@ -101,13 +165,14 @@
         if (card.oncePerRun && run.seenCards.includes(card.id)) return false;
         if (enemyCount >= this.config.maxEnemiesInRecent && card.type === "ENEMY") return false;
         if (specialCount >= this.config.maxSpecialsInRecent && SPECIAL_TYPES.has(card.type)) return false;
-        if ((run.feedEffects?.safeCards || 0) > 0 && card.type === "ENEMY") return false;
+        if (card.success?.item && run.items.length >= (run.inventoryCapacity || 3)) return false;
+        if (((run.feedEffects?.safeCards || 0) > 0 || hasStatus(run, "silence")) && card.type === "ENEMY") return false;
         return true;
       });
       const rarityPool = pool.filter((card) => card.rarity === desiredRarity);
       if (rarityPool.length) pool = rarityPool;
       if (!pool.length) pool = this.registry.all().filter((card) => card.id !== lastId);
-      const card = weightedPick(pool, (entry) => entry.weight, this.rng);
+      const card = weightedPick(pool, (entry) => entry.weight * ((run.savedCards || []).includes(entry.id) ? 1.8 : 1), this.rng);
       if (!card) return null;
       const energyDiscount = run.feedEffects?.energyDiscount || 0;
       return { ...card, energyCost: Math.max(0, card.energyCost - energyDiscount), state: CARD_STATES.VISIBLE };
@@ -120,6 +185,7 @@
       maxHealth: config.maxHealth,
       energy: config.startingEnergy,
       maxEnergy: config.maxEnergy,
+      minimumPlayableEnergy: Number(config.minimumPlayableEnergy || 0),
       coins: 0,
       cardsScrolled: 0,
       cardsInteracted: 0,
@@ -127,8 +193,12 @@
       seenCards: [],
       resolvedCards: [],
       items: [],
+      inventoryCapacity: 3,
+      inventoryExpanded: false,
       evolution: {},
       feedEffects: { rareBoost: 0, energyDiscount: 0, safeCards: 0, remaining: 0 },
+      statuses: {},
+      savedCards: [],
       startedAt: Date.now(),
       night: 1,
       targetCards: config.bossAtCards,
@@ -138,11 +208,14 @@
   }
 
   function applyEffects(run, effects = {}, rng = Math.random) {
-    const applied = { health: 0, energy: 0, coins: 0, item: null, evolution: null };
+    const applied = { health: 0, energy: 0, coins: 0, item: null, inventoryCapacity: 0, evolution: null };
     let resolvedEffects = effects;
     if (effects.randomReward) {
       const options = [{ health: 1 }, { energy: 3 }, { coins: 25 }, { coins: 12, energy: 1 }];
       resolvedEffects = { ...effects, ...options[Math.floor(rng() * options.length)] };
+      if (Number(effects.randomRewardMultiplier) > 1) {
+        resolvedEffects = scaleNumericEffects(resolvedEffects, Number(effects.randomRewardMultiplier), true);
+      }
     }
     if (Number.isFinite(resolvedEffects.health)) {
       const before = run.health;
@@ -159,9 +232,14 @@
       run.coins = Math.max(0, run.coins + resolvedEffects.coins);
       applied.coins = run.coins - before;
     }
-    if (resolvedEffects.item && !run.items.includes(resolvedEffects.item)) {
+    if (resolvedEffects.item && !run.items.includes(resolvedEffects.item) && run.items.length < (run.inventoryCapacity || 3)) {
       run.items.push(resolvedEffects.item);
       applied.item = resolvedEffects.item;
+    }
+    if (Number.isFinite(resolvedEffects.inventoryCapacity)) {
+      const before = run.inventoryCapacity || 3;
+      run.inventoryCapacity = Math.max(before, Math.min(6, Math.floor(resolvedEffects.inventoryCapacity)));
+      applied.inventoryCapacity = run.inventoryCapacity - before;
     }
     if (resolvedEffects.evolution) {
       const id = resolvedEffects.evolution;
@@ -170,12 +248,16 @@
     }
     if (run.health <= 0) run.ended = true;
     if (run.health <= 0) run.endedReason = "health";
-    if (run.energy <= 0) { run.energy = 0; run.ended = true; run.endedReason = "energy"; }
+    if (run.energy <= 0) run.energy = 0;
+    if (run.energy < Number(run.minimumPlayableEnergy || 0) || run.energy <= 0) { run.ended = true; run.endedReason = "energy"; }
     return applied;
   }
 
   function applyFutureEffects(run, future = {}) {
     if (!future || typeof future !== "object") return run.feedEffects;
+    if (future.statuses) applyStatuses(run, future.statuses);
+    const hasLegacyEffect = ["rareBoost", "energyDiscount", "safeCards", "duration"].some((key) => future[key] !== undefined);
+    if (!hasLegacyEffect) return run.feedEffects;
     const duration = Math.max(0, Number(future.duration || future.safeCards || 0));
     run.feedEffects = {
       rareBoost: Math.max(0, Number(future.rareBoost || 0)),
@@ -188,8 +270,9 @@
 
   function canInteract(run, card) {
     if (!run || run.ended) return { ok: false, reason: "RUN_ENDED" };
+    if (run.energy < Number(run.minimumPlayableEnergy || 0)) return { ok: false, reason: "INSUFFICIENT_ENERGY" };
     if (!card || card.state !== CARD_STATES.VISIBLE) return { ok: false, reason: "CARD_UNAVAILABLE" };
-    if (run.energy < card.energyCost) return { ok: false, reason: "INSUFFICIENT_ENERGY" };
+    if (!hasStatus(run, "adrenaline") && run.energy < card.energyCost) return { ok: false, reason: "INSUFFICIENT_ENERGY" };
     return { ok: true };
   }
 
@@ -197,17 +280,42 @@
     const check = canInteract(run, card);
     if (!check.ok) return check;
     card.state = CARD_STATES.INTERACTING;
-    run.energy -= card.energyCost;
+    if (!hasStatus(run, "adrenaline")) run.energy -= card.energyCost;
     run.cardsInteracted++;
     return { ok: true };
   }
 
   function resolveCard(run, card, success, rng = Math.random) {
     if (!card || card.state !== CARD_STATES.INTERACTING) return { ok: false, reason: "CARD_NOT_INTERACTING", applied: null };
-    const applied = applyEffects(run, success ? card.success : card.failure, rng);
+    const configured = success ? card.success : card.failure;
+    let effects = { ...configured };
+    let modified = false;
+    const curseActive = hasStatus(run, "curse");
+    const acceleratedActive = hasStatus(run, "acceleratedFeed");
+    if (curseActive) { effects = scaleNumericEffects(effects, 2); modified = true; }
+    if (acceleratedActive) { effects = scaleNumericEffects(effects, 1.5, true); modified = true; }
+    if (effects.randomReward && (curseActive || acceleratedActive)) {
+      effects.randomRewardMultiplier = (curseActive ? 2 : 1) * (acceleratedActive ? 1.5 : 1);
+    }
+    if (success && card.food && hasStatus(run, "hunger")) {
+      effects.health = (Number(effects.health) || 0) + 1;
+      modified = true;
+    }
+    const applied = applyEffects(run, effects, rng);
+    const echoed = hasStatus(run, "echo");
+    if (echoed) {
+      const echoApplied = applyEffects(run, effects, rng);
+      ["health", "energy", "coins"].forEach((key) => { applied[key] += echoApplied[key]; });
+      applied.item ||= echoApplied.item;
+      applied.inventoryCapacity += echoApplied.inventoryCapacity;
+      applied.evolution ||= echoApplied.evolution;
+      consumeStatus(run, "echo");
+    }
+    tickStatuses(run, "interaction");
+    if (configured.future) applyFutureEffects(run, configured.future);
     card.state = CARD_STATES.RESOLVED;
     if (!run.resolvedCards.includes(card.id)) run.resolvedCards.push(card.id);
-    return { ok: true, applied };
+    return { ok: true, applied, echoed, modified };
   }
 
   function skipCard(run, card, recentLimit, scrollEnergyCost = 0) {
@@ -220,7 +328,8 @@
   function recordScroll(run, card, recentLimit, scrollEnergyCost = 0) {
     run.cardsScrolled++;
     run.energy = Math.max(0, run.energy - Math.max(0, scrollEnergyCost));
-    if (run.energy <= 0) { run.ended = true; run.endedReason = "energy"; }
+    const minimumEnergy = Number(run.minimumPlayableEnergy || 0);
+    if (run.energy < minimumEnergy || run.energy <= 0) { run.ended = true; run.endedReason = "energy"; }
     if (!run.seenCards.includes(card.id)) run.seenCards.push(card.id);
     run.recentCards.push(card.id);
     if (run.recentCards.length > recentLimit) run.recentCards.splice(0, run.recentCards.length - recentLimit);
@@ -229,6 +338,7 @@
       if (run.feedEffects.safeCards > 0) run.feedEffects.safeCards--;
       if (run.feedEffects.remaining <= 0) run.feedEffects = { rareBoost: 0, energyDiscount: 0, safeCards: 0, remaining: 0 };
     }
+    tickStatuses(run, "post");
   }
 
   function nightTime(cardsScrolled) {
@@ -245,7 +355,7 @@
     return Math.min(limit, base + Math.max(0, night - 1) * step);
   }
 
-  const api = { CARD_STATES, CardRegistry, FeedGenerator, GameDirector, weightedPick, rollRarity, createRunState, applyEffects, applyFutureEffects, canInteract, beginInteraction, resolveCard, skipCard, recordScroll, nightTime, nightTarget };
+  const api = { CARD_STATES, CardRegistry, FeedGenerator, GameDirector, weightedPick, rollRarity, createRunState, applyEffects, applyFutureEffects, applyStatuses, hasStatus, consumeStatus, canInteract, beginInteraction, resolveCard, skipCard, recordScroll, nightTime, nightTarget };
   global.DtsCore = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);

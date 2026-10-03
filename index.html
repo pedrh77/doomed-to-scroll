@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&amp;family=Press+Start+2P&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=game-ui-9">
+  <link rel="stylesheet" href="styles.css?v=game-ui-13">
 </head>
 <body>
   <main id="app" aria-live="polite">
@@ -50,13 +50,15 @@
         <button id="stopBtn" class="stop" aria-label="Encerrar noite">SAIR</button>
       </header>
       <div class="run-stats">
-        <span>MOEDAS <b id="runCoins">0</b></span><span>POST <b id="post">1</b></span><span>NOITE <b id="nightNumber">1</b></span><span>META <b id="nightPercent">0/15</b></span>
+        <span>MOEDAS <b id="runCoins">0</b></span><span>POST <b id="post">1</b></span><span>NOITE <b id="nightNumber">1</b></span><span>AMEAÇA <b id="difficultyLevel">1</b></span><span>META <b id="nightPercent">0/15</b></span>
       </div>
+      <div id="statusEffects" class="status-effects" aria-label="Efeitos ativos" hidden></div>
       <div id="feed" class="feed">
         <article id="card" class="post-card game-card neon-card" tabindex="0">
           <div class="card-top"><span id="rarity" class="rarity">COMMON</span><span id="category">NORMAL</span><span id="energyCost" class="energy-cost"></span></div>
           <div id="artStage" class="art-stage">
             <img id="postImage" alt="" draggable="false">
+            <div id="dragCost" class="drag-cost" aria-live="polite">ARRASTAR: -0,25 ENERGIA</div>
             <div id="heartBurst" class="heart-burst" aria-hidden="true"></div>
             <div id="fx"></div>
             <aside class="social-actions" aria-label="Ações do post">
@@ -81,13 +83,26 @@
         <div class="gesture-hint"><span>ROLE PARA CONTINUAR</span><span>AÇÃO LATERAL OU DOIS TOQUES</span></div>
       </div>
       <div id="progressTracker" class="progress-tracker" hidden></div>
-      <footer class="inventory"><span class="inventory-label">MOCHILA <small>TOQUE PARA USAR</small></span><div id="slots"></div></footer>
+      <footer class="inventory">
+        <span class="inventory-label">MOCHILA <small>TOQUE NO ITEM PARA ATIVAR</small></span>
+        <div id="slots" aria-label="Espaços da mochila"></div>
+        <button id="inventoryExpand" class="inventory-expand" aria-label="Expandir mochila" aria-expanded="false" disabled><span class="bag-icon" aria-hidden="true"></span><b id="inventoryCount">3</b></button>
+      </footer>
+      <div id="itemNotice" class="item-notice" hidden>
+        <section class="item-notice-panel game-panel" role="dialog" aria-modal="true" aria-labelledby="itemNoticeTitle">
+          <div class="item-notice-icon" aria-hidden="true">ITEM</div>
+          <h2 id="itemNoticeTitle">ITEM GUARDADO</h2>
+          <p id="itemNoticeText"></p>
+          <strong id="itemNoticeHint">PODE SER ATIVADO A QUALQUER MOMENTO PELA MOCHILA</strong>
+          <button id="itemNoticeClose" class="game-button game-button-primary">ENTENDI</button>
+        </section>
+      </div>
       <div id="tutorialOverlay" class="tutorial-overlay" hidden>
         <section class="tutorial-panel game-panel" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
           <div id="tutorialIcon" class="tutorial-icon" aria-hidden="true">01</div>
           <span id="tutorialStep" class="tutorial-step">PASSO 1 DE 3</span>
           <h2 id="tutorialTitle">ROLE O FEED</h2>
-          <p id="tutorialText">Deslize para cima ou para baixo. Passar um post não gasta Energia.</p>
+          <p id="tutorialText">Deslize para cima. Cada novo post gasta 0,25 de Energia.</p>
           <div id="tutorialDots" class="tutorial-dots" aria-hidden="true"></div>
           <button id="tutorialNext" class="game-button game-button-primary">PRÓXIMO</button>
         </section>
@@ -97,9 +112,16 @@
     <section id="boss" class="screen boss-screen">
       <div class="boss-glitch">BOSS</div>
       <h2 id="bossTitle">ALGORITMO</h2>
-      <div class="boss-sprite" id="bossSprite" data-boss="algorithm"></div>
+      <div class="boss-arena" id="bossArena" aria-hidden="true">
+        <div class="boss-aura"></div>
+        <div class="boss-sprite" id="bossSprite" data-boss="algorithm"></div>
+        <div class="boss-attack-wave"></div>
+        <div class="boss-impact"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
       <p id="bossTaunt">Eu sei exatamente o que você quer ver.</p>
-      <div id="bossChoices" class="boss-choices"></div>
+      <div class="boss-health"><span>INTEGRIDADE</span><div><i id="bossHealthFill"></i></div><b id="bossPhase">FASE 1/3</b></div>
+      <div id="bossBattle" class="boss-battle" hidden></div>
+      <div id="bossChoices" class="boss-choices" hidden></div>
       <button id="bossStop" class="stop boss-stop">CHEGA. EU VOU DORMIR.</button>
     </section>
 
@@ -131,9 +153,10 @@
     </section>
     <div id="toast" class="toast"></div>
   </main>
-  <script src="game-config.js?v=game-ui-9"></script>
-  <script src="game-core.js?v=game-ui-9"></script>
-  <script src="minigames.js?v=game-ui-9"></script>
-  <script src="game-v2.js?v=game-ui-9"></script>
+  <script src="sound.js?v=game-ui-13"></script>
+  <script src="game-config.js?v=game-ui-13"></script>
+  <script src="game-core.js?v=game-ui-13"></script>
+  <script src="minigames.js?v=game-ui-13"></script>
+  <script src="game-v2.js?v=game-ui-13"></script>
 </body>
 </html>

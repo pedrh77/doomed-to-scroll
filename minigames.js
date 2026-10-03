@@ -2,8 +2,8 @@
 
 (function exposeMiniGames(global) {
   const DIRECTIONS = [
-    { key: "LEFT", symbol: "ESQ" }, { key: "DOWN", symbol: "BAIXO" },
-    { key: "UP", symbol: "CIMA" }, { key: "RIGHT", symbol: "DIR" }
+    { key: "LEFT", label: "ESQUERDA" }, { key: "DOWN", label: "BAIXO" },
+    { key: "UP", label: "CIMA" }, { key: "RIGHT", label: "DIREITA" }
   ];
   const GAME_HELP = Object.freeze({
     TAP_CHALLENGE: "Toque no alvo até completar a barra.", SEQUENCE: "Memorize as direções e repita na ordem.",
@@ -19,6 +19,8 @@
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const randomItem = (items) => items[Math.floor(Math.random() * items.length)];
+  const playSound = (name) => global.DtsSound?.play(name);
+  const directionIcon = (item, showLabel = true) => `<span class="direction-arrow direction-${item.key.toLowerCase()}" aria-hidden="true"></span>${showLabel ? `<small>${item.label}</small>` : ""}`;
 
   class BaseMiniGame {
     constructor(root, settings, onFinish) {
@@ -36,10 +38,12 @@
       if (this.settings.skipCountdown) { callback(); return; }
       const help = this.settings.help || GAME_HELP[this.settings.type] || "Complete o desafio antes do tempo acabar.";
       this.render("COMO JOGAR", `<p class="mini-instruction">${help}</p><div class="countdown" id="miniCountdown">3</div>`);
+      playSound("countdown");
       let value = 3;
       const tick = () => {
         value--; const label = this.root.querySelector("#miniCountdown"); if (!label) return;
         label.textContent = value > 0 ? value : "VAI";
+        playSound("countdown");
         value > 0 ? this.timeout(tick, 800) : this.timeout(callback, 520);
       };
       this.timeout(tick, 800);
@@ -56,6 +60,7 @@
     }
     finish(success, details = {}) {
       if (this.finished) return; this.finished = true; this.clearScheduled(); this.abortController.abort();
+      playSound(success ? "success" : "error");
       this.onFinish({ success, score: details.score || 0, accuracy: details.accuracy || 0, time: details.time || 0, message: details.message, effects: details.effects, future: details.future, choice: details.choice });
     }
     clearScheduled() { this.timeouts.forEach(clearTimeout); this.frames.forEach(cancelAnimationFrame); this.timeouts.clear(); this.frames.clear(); }
@@ -64,26 +69,36 @@
 
   class TapChallenge extends BaseMiniGame {
     start() { this.prepare(() => {
-      const target = this.settings.target || 14, duration = this.settings.duration || 6; let taps = 0; const started = performance.now();
-      this.render("TOQUE RÁPIDO", `<p>Meta: <b>${target}</b> toques</p><button class="tap-target" id="tapTarget">TOQUE</button><div class="mini-progress"><i id="tapProgress"></i></div><strong id="tapCount">0 / ${target}</strong><small id="miniTimer"></small>`);
+      const target = this.settings.target || 14, duration = this.settings.duration || 6; let taps = 0, errors = 0; const started = performance.now();
+      this.render("TOQUE RÁPIDO", `<p>Meta: <b>${target}</b> toques</p><button class="tap-target" id="tapTarget">TOQUE</button><div class="mini-progress"><i id="tapProgress"></i></div><strong id="tapCount">0 / ${target}</strong><small id="tapErrors"></small><small id="miniTimer"></small>`);
+      const details = () => ({ score: taps, accuracy: taps / Math.max(1, taps + errors), time: (performance.now() - started) / 1000, effects: errors && this.settings.errorEnergy ? { energy: -errors * this.settings.errorEnergy } : undefined });
+      this.listen(this.root.querySelector(".minigame-panel"), "pointerdown", (event) => {
+        if (!this.settings.errorEnergy || event.target.closest("#tapTarget")) return;
+        errors++;
+        this.root.querySelector("#tapErrors").textContent = `ERROS: ${errors} · -${errors * this.settings.errorEnergy} ENERGIA`;
+        playSound("energyLoss");
+      });
       this.listen(this.root.querySelector("#tapTarget"), "pointerdown", (event) => {
         event.preventDefault(); taps++; this.root.querySelector("#tapCount").textContent = `${taps} / ${target}`;
         this.root.querySelector("#tapProgress").style.width = `${Math.min(100, taps / target * 100)}%`;
-        if (taps >= target) this.finish(true, { score: taps, accuracy: 1, time: (performance.now() - started) / 1000 });
+        if (taps >= target) this.finish(true, details());
       });
-      this.runTimer(duration, null, () => this.finish(false, { score: taps, accuracy: taps / target, time: duration }));
+      this.runTimer(duration, null, () => this.finish(false, details()));
     }); }
   }
 
   class SequenceGame extends BaseMiniGame {
     start() { this.prepare(() => {
-      const sequence = Array.from({ length: this.settings.length || 4 }, () => randomItem(DIRECTIONS));
-      this.render("MEMORIZE", `<div class="sequence-preview">${sequence.map((item) => `<span>${item.symbol}</span>`).join("")}</div><small>Você tem 2,5 segundos</small>`);
-      this.timeout(() => this.play(sequence), this.settings.preview || 2500);
+      const length = this.settings.length || 4;
+      const sequence = this.settings.echoPrevious
+        ? Array.from({ length: Math.ceil(length / 2) }, () => randomItem(DIRECTIONS)).flatMap((item) => [item, item]).slice(0, length)
+        : Array.from({ length }, () => randomItem(DIRECTIONS));
+      this.render("MEMORIZE", `<div class="sequence-preview">${sequence.map((item) => `<span aria-label="${item.label}">${directionIcon(item, false)}</span>`).join("")}</div><small>Você tem 2,5 segundos</small>`);
+      this.timeout(() => this.play(sequence), (this.settings.preview || 2500) / (this.settings.pace || 1));
     }); }
     play(sequence) {
       const duration = this.settings.duration || 8, started = performance.now(); let index = 0;
-      this.render("REPITA A SEQUÊNCIA", `<div class="sequence-slots" id="sequenceSlots">${sequence.map(() => "<i></i>").join("")}</div><div class="direction-grid">${DIRECTIONS.map((item) => `<button data-direction="${item.key}">${item.symbol}</button>`).join("")}</div><small id="miniTimer"></small>`);
+      this.render("REPITA A SEQUÊNCIA", `<div class="sequence-slots" id="sequenceSlots">${sequence.map(() => "<i></i>").join("")}</div><div class="direction-grid">${DIRECTIONS.map((item) => `<button data-direction="${item.key}" aria-label="${item.label}">${directionIcon(item)}</button>`).join("")}</div><small id="miniTimer"></small>`);
       const choose = (key) => {
         if (sequence[index].key !== key) { this.finish(false, { score: index, accuracy: index / sequence.length }); return; }
         this.root.querySelectorAll("#sequenceSlots i")[index++].classList.add("done");
@@ -99,15 +114,16 @@
       const duration = this.settings.duration || 7, size = this.settings.zoneSize || .28, start = .15 + Math.random() * (.7 - size); let position = 0;
       this.render("ACERTE A ZONA", `<p>Toque quando o cursor entrar na área verde</p><div class="timing-track"><i class="timing-zone" style="left:${start * 100}%;width:${size * 100}%"></i><b id="timingCursor"></b></div><button class="mini-action" id="timingHit">AGORA</button><small id="miniTimer"></small>`);
       this.listen(this.root.querySelector("#timingHit"), "click", () => this.finish(position >= start && position <= start + size, { score: 100 }));
-      this.runTimer(duration, (elapsed) => { position = (Math.sin(elapsed / 540 - Math.PI / 2) + 1) / 2; this.root.querySelector("#timingCursor").style.left = `${position * 100}%`; }, () => this.finish(false));
+      this.runTimer(duration, (elapsed) => { position = (Math.sin(elapsed / (540 / (this.settings.pace || 1)) - Math.PI / 2) + 1) / 2; this.root.querySelector("#timingCursor").style.left = `${position * 100}%`; }, () => this.finish(false));
     }); }
   }
 
   class SwipeDirectionGame extends BaseMiniGame {
     start() { this.prepare(() => {
       const rounds = this.settings.rounds || 4, duration = this.settings.duration || 9; let completed = 0, expected, pointerStart;
-      this.render("DESLIZE NA DIREÇÃO", `<div class="swipe-prompt" id="swipePrompt"></div><strong id="swipeScore">0 / ${rounds}</strong><div class="direction-grid compact">${DIRECTIONS.map((item) => `<button data-direction="${item.key}">${item.symbol}</button>`).join("")}</div><small id="miniTimer"></small>`);
-      const next = () => { expected = randomItem(DIRECTIONS); this.root.querySelector("#swipePrompt").textContent = expected.symbol; };
+      this.render(this.settings.invertControls ? "COMANDOS INVERTIDOS" : "DESLIZE NA DIREÇÃO", `<div class="swipe-prompt" id="swipePrompt"></div>${this.settings.invertControls ? "<p class=inverse-warning>FAÇA O OPOSTO</p>" : ""}<strong id="swipeScore">0 / ${rounds}</strong><div class="direction-grid compact">${DIRECTIONS.map((item) => `<button data-direction="${item.key}" aria-label="${item.label}">${directionIcon(item)}</button>`).join("")}</div><small id="miniTimer"></small>`);
+      const opposite = { LEFT: "RIGHT", RIGHT: "LEFT", UP: "DOWN", DOWN: "UP" };
+      const next = () => { const shown = randomItem(DIRECTIONS); expected = this.settings.invertControls ? DIRECTIONS.find((item) => item.key === opposite[shown.key]) : shown; this.root.querySelector("#swipePrompt").innerHTML = directionIcon(shown); };
       const choose = (key) => { if (key !== expected.key) { this.finish(false, { score: completed, accuracy: completed / rounds }); return; } completed++; this.root.querySelector("#swipeScore").textContent = `${completed} / ${rounds}`; completed >= rounds ? this.finish(true, { score: completed, accuracy: 1 }) : next(); };
       this.root.querySelectorAll("[data-direction]").forEach((button) => this.listen(button, "click", () => choose(button.dataset.direction)));
       this.listen(this.root, "pointerdown", (event) => { pointerStart = { x: event.clientX, y: event.clientY }; });
@@ -143,14 +159,14 @@
     start() { this.prepare(() => {
       const rounds = this.settings.rounds || 4; let round = 0;
       this.render("ENCONTRE O CERTO", `<p>Toque apenas em CERTO</p><div class="fake-grid" id="fakeGrid"></div><strong id="fakeScore">0 / ${rounds}</strong><small id="miniTimer"></small>`);
-      const draw = () => { const correct = Math.floor(Math.random() * 6); this.root.querySelector("#fakeGrid").innerHTML = Array.from({ length: 6 }, (_, i) => `<button data-correct="${i === correct}">${i === correct ? "CERTO" : randomItem(["FALSO", "NÃO", "ERRO"])}</button>`).join(""); this.root.querySelectorAll("#fakeGrid button").forEach((button) => this.listen(button, "click", () => { if (button.dataset.correct !== "true") { this.finish(false, { score: round, accuracy: round / rounds }); return; } round++; this.root.querySelector("#fakeScore").textContent = `${round} / ${rounds}`; round >= rounds ? this.finish(true, { score: round, accuracy: 1 }) : draw(); })); };
+      const draw = () => { const blocked = this.settings.blockedCells ? new Set(Array.from({ length: 2 }, () => Math.floor(Math.random() * 6))) : new Set(); const available = Array.from({ length: 6 }, (_, index) => index).filter((index) => !blocked.has(index)); const correct = randomItem(available); this.root.querySelector("#fakeGrid").innerHTML = Array.from({ length: 6 }, (_, i) => blocked.has(i) ? `<button class="web-blocked" disabled>TEIA</button>` : `<button data-correct="${i === correct}">${i === correct ? "CERTO" : randomItem(["FALSO", "NÃO", "ERRO"])}</button>`).join(""); this.root.querySelectorAll("#fakeGrid button:not(:disabled)").forEach((button) => this.listen(button, "click", () => { if (button.dataset.correct !== "true") { this.finish(false, { score: round, accuracy: round / rounds }); return; } round++; this.root.querySelector("#fakeScore").textContent = `${round} / ${rounds}`; round >= rounds ? this.finish(true, { score: round, accuracy: 1 }) : draw(); })); };
       draw(); this.runTimer(this.settings.duration || 10, null, () => this.finish(false, { score: round, accuracy: round / rounds }));
     }); }
   }
 
   class MemoryGridGame extends BaseMiniGame {
-    start() { this.prepare(() => { const size = this.settings.size || 9, count = this.settings.length || 4, cells = []; while (cells.length < count) { const value = Math.floor(Math.random() * size); if (!cells.includes(value)) cells.push(value); } this.render("MEMORIZE AS LUZES", `<div class="memory-grid preview">${Array.from({ length: size }, (_, i) => `<button class="${cells.includes(i) ? "lit" : ""}"></button>`).join("")}</div><small>Observe por 2,5 segundos</small>`); this.timeout(() => this.play(cells, size), this.settings.preview || 2500); }); }
-    play(cells, size) { let selected = 0; this.render("REPITA O PADRÃO", `<div class="memory-grid" id="memoryGrid">${Array.from({ length: size }, (_, i) => `<button data-cell="${i}"></button>`).join("")}</div><strong id="memoryScore">0 / ${cells.length}</strong><small id="miniTimer"></small>`); this.root.querySelectorAll("[data-cell]").forEach((button) => this.listen(button, "click", () => { const cell = Number(button.dataset.cell); if (!cells.includes(cell) || button.classList.contains("selected")) { this.finish(false, { score: selected, accuracy: selected / cells.length }); return; } button.classList.add("selected"); selected++; this.root.querySelector("#memoryScore").textContent = `${selected} / ${cells.length}`; if (selected === cells.length) this.finish(true, { score: selected, accuracy: 1 }); })); this.runTimer(this.settings.duration || 10, null, () => this.finish(false, { score: selected, accuracy: selected / cells.length })); }
+    start() { this.prepare(() => { const size = this.settings.size || 9, count = this.settings.length || 4, cells = []; while (cells.length < count) { const value = Math.floor(Math.random() * size); if (!cells.includes(value)) cells.push(value); } this.render("MEMORIZE AS LUZES", `<div class="memory-grid preview">${Array.from({ length: size }, (_, i) => `<button class="${cells.includes(i) ? "lit" : ""}"></button>`).join("")}</div><small>Observe o padrão</small>`); this.timeout(() => this.play(cells, size), (this.settings.preview || 2500) / (this.settings.pace || 1)); }); }
+    play(cells, size, revived = false) { let selected = 0; const started = performance.now(); this.render(revived ? "VENÇA OUTRA VEZ" : "REPITA O PADRÃO", `<div class="memory-grid" id="memoryGrid">${Array.from({ length: size }, (_, i) => `<button data-cell="${i}"></button>`).join("")}</div><strong id="memoryScore">0 / ${cells.length}</strong><small id="miniTimer"></small>`); this.root.querySelectorAll("[data-cell]").forEach((button) => this.listen(button, "click", () => { const cell = Number(button.dataset.cell); if (!cells.includes(cell) || button.classList.contains("selected")) { this.finish(false, { score: selected, accuracy: selected / cells.length }); return; } button.classList.add("selected"); selected++; this.root.querySelector("#memoryScore").textContent = `${selected} / ${cells.length}`; if (selected !== cells.length) return; if (!revived && this.settings.reviveAfterMs && performance.now() - started > this.settings.reviveAfterMs) { this.clearScheduled(); const nextCells = []; while (nextCells.length < cells.length) { const value = Math.floor(Math.random() * size); if (!nextCells.includes(value)) nextCells.push(value); } this.render("O ESQUELETO REVIVEU", `<p>Você demorou. Memorize novamente.</p><div class="memory-grid preview">${Array.from({ length: size }, (_, i) => `<button class="${nextCells.includes(i) ? "lit" : ""}"></button>`).join("")}</div>`); this.timeout(() => this.play(nextCells, size, true), 1500); return; } this.finish(true, { score: selected, accuracy: 1 }); })); this.runTimer(this.settings.duration || 10, null, () => this.finish(false, { score: selected, accuracy: selected / cells.length })); }
   }
 
   class TraceGame extends BaseMiniGame {
@@ -196,7 +212,7 @@
       const beats = this.settings.rounds || 5; let completed = 0, position = 0;
       this.render("SIGA A BATIDA", `<div class="rhythm-track"><i class="rhythm-zone"></i><b id="rhythmBeat"></b></div><button class="mini-action" id="rhythmTap">TOCAR</button><strong id="rhythmScore">0 / ${beats}</strong><small id="miniTimer"></small>`);
       this.listen(this.root.querySelector("#rhythmTap"), "pointerdown", () => { if (position < .78 || position > .96) { this.finish(false, { score: completed, accuracy: completed / beats }); return; } completed++; this.root.querySelector("#rhythmScore").textContent = `${completed} / ${beats}`; if (completed >= beats) this.finish(true, { score: completed, accuracy: 1 }); });
-      this.runTimer(this.settings.duration || 12, (elapsed) => { position = elapsed % 1700 / 1700; this.root.querySelector("#rhythmBeat").style.left = `${position * 100}%`; }, () => this.finish(false, { score: completed, accuracy: completed / beats }));
+      this.runTimer(this.settings.duration || 12, (elapsed) => { const beatDuration = 1700 / (this.settings.pace || 1); position = elapsed % beatDuration / beatDuration; this.root.querySelector("#rhythmBeat").style.left = `${position * 100}%`; }, () => this.finish(false, { score: completed, accuracy: completed / beats }));
     }); }
   }
 
@@ -206,7 +222,7 @@
       this.render("ALINHE OS PINOS", `<div class="timing-track"><i id="lockZone" class="timing-zone"></i><b id="lockCursor"></b></div><button class="mini-action" id="lockHit">ALINHAR</button><strong id="lockScore">0 / ${pins}</strong><small id="miniTimer"></small>`);
       const next = () => { zoneStart = .12 + Math.random() * .65; this.root.querySelector("#lockZone").style.cssText = `left:${zoneStart * 100}%;width:18%`; };
       this.listen(this.root.querySelector("#lockHit"), "click", () => { if (position < zoneStart || position > zoneStart + .18) { this.finish(false, { score: pin, accuracy: pin / pins }); return; } pin++; this.root.querySelector("#lockScore").textContent = `${pin} / ${pins}`; pin >= pins ? this.finish(true, { score: pin, accuracy: 1 }) : next(); });
-      next(); this.runTimer(this.settings.duration || 12, (elapsed) => { position = (Math.sin(elapsed / 500 - Math.PI / 2) + 1) / 2; this.root.querySelector("#lockCursor").style.left = `${position * 100}%`; }, () => this.finish(false, { score: pin, accuracy: pin / pins }));
+      next(); this.runTimer(this.settings.duration || 12, (elapsed) => { position = (Math.sin(elapsed / (500 / (this.settings.pace || 1)) - Math.PI / 2) + 1) / 2; this.root.querySelector("#lockCursor").style.left = `${position * 100}%`; }, () => this.finish(false, { score: pin, accuracy: pin / pins }));
     }); }
   }
 
@@ -214,30 +230,32 @@
     start() { this.prepare(() => {
       const rounds = this.settings.rounds || 6; let lane = 1, step = 0, obstacle = Math.floor(Math.random() * 3);
       this.render("DESVIE", `<div class="dodge-board"><div class="dodge-obstacle" id="dodgeObstacle"></div><div class="dodge-player" id="dodgePlayer"></div></div><div class="dodge-controls"><button data-move="-1">ESQUERDA</button><button data-move="1">DIREITA</button></div><strong id="dodgeScore">0 / ${rounds}</strong><small id="miniTimer"></small>`);
-      const paint = () => { this.root.querySelector("#dodgePlayer").style.left = `${16 + lane * 34}%`; this.root.querySelector("#dodgeObstacle").style.left = `${16 + obstacle * 34}%`; }, advance = () => { if (lane === obstacle) { this.finish(false, { score: step, accuracy: step / rounds }); return; } step++; this.root.querySelector("#dodgeScore").textContent = `${step} / ${rounds}`; if (step >= rounds) { this.finish(true, { score: step, accuracy: 1 }); return; } obstacle = Math.floor(Math.random() * 3); paint(); this.timeout(advance, 1100); };
+      const stepDelay = 1100 / (this.settings.pace || 1), paint = () => { this.root.querySelector("#dodgePlayer").style.left = `${16 + lane * 34}%`; this.root.querySelector("#dodgeObstacle").style.left = `${16 + obstacle * 34}%`; }, advance = () => { if (lane === obstacle) { this.finish(false, { score: step, accuracy: step / rounds }); return; } step++; this.root.querySelector("#dodgeScore").textContent = `${step} / ${rounds}`; if (step >= rounds) { this.finish(true, { score: step, accuracy: 1 }); return; } obstacle = Math.floor(Math.random() * 3); paint(); this.timeout(advance, stepDelay); };
       this.root.querySelectorAll("[data-move]").forEach((button) => this.listen(button, "click", () => { lane = clamp(lane + Number(button.dataset.move), 0, 2); paint(); }));
-      paint(); this.timeout(advance, 1400); this.runTimer(this.settings.duration || 10, null, () => this.finish(false, { score: step, accuracy: step / rounds }));
+      paint(); this.timeout(advance, 1400 / (this.settings.pace || 1)); this.runTimer(this.settings.duration || 10, null, () => this.finish(false, { score: step, accuracy: step / rounds }));
     }); }
   }
 
   class StopSignalGame extends BaseMiniGame {
     start() { this.prepare(() => {
-      const target = this.settings.target || 12; let taps = 0, green = true;
-      this.render("TOQUE E PARE", `<div class="stop-signal green" id="stopSignal">TOQUE</div><button class="tap-target small" id="stopTap">TOQUE</button><strong id="stopScore">0 / ${target}</strong><small id="miniTimer"></small>`);
-      const switchSignal = () => { green = !green; const signal = this.root.querySelector("#stopSignal"); signal.className = `stop-signal ${green ? "green" : "red"}`; signal.textContent = green ? "TOQUE" : "PARE"; this.timeout(switchSignal, green ? 900 + Math.random() * 700 : 650 + Math.random() * 650); };
-      this.listen(this.root.querySelector("#stopTap"), "pointerdown", () => { if (!green) { this.finish(false, { score: taps, accuracy: taps / target }); return; } taps++; this.root.querySelector("#stopScore").textContent = `${taps} / ${target}`; if (taps >= target) this.finish(true, { score: taps, accuracy: 1 }); });
-      this.timeout(switchSignal, 1200); this.runTimer(this.settings.duration || 12, null, () => this.finish(false, { score: taps, accuracy: taps / target }));
+      const target = this.settings.target || 12; let taps = 0, errors = 0, green = true;
+      this.render("TOQUE E PARE", `<div class="stop-signal green" id="stopSignal">TOQUE</div><button class="tap-target small" id="stopTap">TOQUE</button><strong id="stopScore">0 / ${target}</strong><small id="stopPenalty"></small><small id="miniTimer"></small>`);
+      const details = () => ({ score: taps, accuracy: taps / Math.max(1, taps + errors), effects: errors && this.settings.errorCoins ? { coins: -errors * this.settings.errorCoins } : undefined });
+      const switchSignal = () => { green = !green; const signal = this.root.querySelector("#stopSignal"); signal.className = `stop-signal ${green ? "green" : "red"}`; signal.textContent = green ? "TOQUE" : "PARE"; const delay = green ? 900 + Math.random() * 700 : 650 + Math.random() * 650; this.timeout(switchSignal, delay / (this.settings.pace || 1)); };
+      this.listen(this.root.querySelector("#stopTap"), "pointerdown", () => { if (!green) { if (!this.settings.errorCoins) { this.finish(false, details()); return; } errors++; this.root.querySelector("#stopPenalty").textContent = `ROUBO: -${errors * this.settings.errorCoins} MOEDAS`; playSound("error"); return; } taps++; this.root.querySelector("#stopScore").textContent = `${taps} / ${target}`; if (taps >= target) this.finish(true, details()); });
+      this.timeout(switchSignal, 1200); this.runTimer(this.settings.duration || 12, null, () => this.finish(false, details()));
     }); }
   }
 
   class MultiStageGame extends BaseMiniGame {
     start() { this.prepare(() => this.stageOne()); }
-    stageOne() { let taps = 0; const target = 6; this.render("ETAPA 1 DE 2", `<p>Complete ${target} toques</p><button class="tap-target small" id="multiTap">TOQUE</button><strong id="multiScore">0 / ${target}</strong>`); this.listen(this.root.querySelector("#multiTap"), "pointerdown", () => { taps++; this.root.querySelector("#multiScore").textContent = `${taps} / ${target}`; if (taps >= target) this.stageTwo(); }); this.timeout(() => this.finish(false, { score: taps, accuracy: taps / target }), 6000); }
-    stageTwo() { this.clearScheduled(); this.abortController.abort(); this.abortController = new AbortController(); const expected = randomItem(DIRECTIONS); this.render("ETAPA 2 DE 2", `<p>Escolha a direção indicada</p><div class="swipe-prompt">${expected.symbol}</div><div class="direction-grid">${DIRECTIONS.map((item) => `<button data-direction="${item.key}">${item.symbol}</button>`).join("")}</div>`); this.root.querySelectorAll("[data-direction]").forEach((button) => this.listen(button, "click", () => this.finish(button.dataset.direction === expected.key, { score: button.dataset.direction === expected.key ? 2 : 1, accuracy: button.dataset.direction === expected.key ? 1 : .5 }))); this.timeout(() => this.finish(false, { score: 1, accuracy: .5 }), 6500); }
+    stageOne() { let taps = 0; const target = 6, stages = this.settings.stages || 2; this.render(`ETAPA 1 DE ${stages}`, `<p>Complete ${target} toques</p><button class="tap-target small" id="multiTap">TOQUE</button><strong id="multiScore">0 / ${target}</strong>`); this.listen(this.root.querySelector("#multiTap"), "pointerdown", () => { taps++; this.root.querySelector("#multiScore").textContent = `${taps} / ${target}`; if (taps >= target) this.stageTwo(); }); this.timeout(() => this.finish(false, { score: taps, accuracy: taps / target }), 6000); }
+    stageTwo() { this.clearScheduled(); this.abortController.abort(); this.abortController = new AbortController(); const expected = randomItem(DIRECTIONS), stages = this.settings.stages || 2; this.render(`ETAPA 2 DE ${stages}`, `<p>Escolha a direção indicada</p><div class="swipe-prompt">${directionIcon(expected)}</div><div class="direction-grid">${DIRECTIONS.map((item) => `<button data-direction="${item.key}" aria-label="${item.label}">${directionIcon(item)}</button>`).join("")}</div>`); this.root.querySelectorAll("[data-direction]").forEach((button) => this.listen(button, "click", () => { if (button.dataset.direction !== expected.key) { this.finish(false, { score: 1, accuracy: .5 }); return; } stages >= 3 ? this.stageThree() : this.finish(true, { score: 2, accuracy: 1 }); })); this.timeout(() => this.finish(false, { score: 1, accuracy: .5 }), 6500); }
+    stageThree() { this.clearScheduled(); this.abortController.abort(); this.abortController = new AbortController(); let position = 0; this.render("ETAPA 3 DE 3", `<p>Acerte o núcleo</p><div class="timing-track"><i class="timing-zone" style="left:72%;width:20%"></i><b id="multiCursor"></b></div><button class="mini-action" id="multiFinish">ATACAR</button><small id="miniTimer"></small>`); this.listen(this.root.querySelector("#multiFinish"), "click", () => this.finish(position >= .72 && position <= .92, { score: 3, accuracy: position >= .72 && position <= .92 ? 1 : .66 })); this.runTimer(6, (elapsed) => { position = elapsed % 1400 / 1400; this.root.querySelector("#multiCursor").style.left = `${position * 100}%`; }, () => this.finish(false, { score: 2, accuracy: .66 })); }
   }
 
   class DecisionGame extends BaseMiniGame {
-    start() { this.prepare(() => { const options = this.getOptions(); this.render(this.settings.title || "FAÇA SUA ESCOLHA", `<p>${this.settings.prompt || "Esta decisão altera os próximos posts."}</p><div class="choice-grid">${options.map((option, index) => `<button data-choice="${index}"><b>${option.label}</b><small>${option.detail || ""}</small></button>`).join("")}</div>`); this.root.querySelectorAll("[data-choice]").forEach((button) => this.listen(button, "click", () => { const option = options[Number(button.dataset.choice)]; this.finish(option.success !== false, { score: 1, accuracy: 1, message: option.message, effects: option.effects, future: option.future, choice: option.label }); })); }); }
+    start() { this.prepare(() => { const options = this.getOptions(), coins = Number(this.settings.availableCoins || 0); this.render(this.settings.title || "FAÇA SUA ESCOLHA", `<p>${this.settings.prompt || "Esta decisão altera os próximos posts."}</p><div class="choice-grid">${options.map((option, index) => `<button data-choice="${index}" ${option.cost > coins ? "disabled" : ""}><b>${option.label}</b><small>${option.cost > coins ? "MOEDAS INSUFICIENTES" : option.detail || ""}</small></button>`).join("")}</div>`); this.root.querySelectorAll("[data-choice]").forEach((button) => this.listen(button, "click", () => { const option = options[Number(button.dataset.choice)]; this.finish(option.success !== false, { score: 1, accuracy: 1, message: option.message, effects: option.effects, future: option.future, choice: option.label }); })); }); }
     getOptions() { return this.settings.options || [{ label: "CAMINHO SEGURO", detail: "Menos risco por 3 posts", message: "O feed ficou mais calmo.", future: { safeCards: 3 } }, { label: "CAMINHO RARO", detail: "Mais raridade por 3 posts", message: "O algoritmo percebeu sua ambição.", future: { rareBoost: .8, duration: 3 } }]; }
   }
   class ChoiceGame extends DecisionGame {}
@@ -252,11 +270,11 @@
   });
 
   class MiniGameManager {
-    constructor(root) { this.root = root; this.active = null; this.previewTimers = new Set(); }
-    start(type, settings = {}) { this.cancel(); return new Promise((resolve) => { const Game = GAMES[type]; if (!Game) { resolve({ success: true, score: 0, accuracy: 1, time: 0 }); return; } const finish = (result) => { this.active = null; resolve(result); }; this.active = new Game(this.root, { ...settings, type }, finish); this.active.start(); }); }
-    cancel() { if (this.active) this.active.cancel(); this.active = null; this.previewTimers.forEach(clearTimeout); this.previewTimers.clear(); this.root.hidden = true; this.root.innerHTML = ""; }
+    constructor(root) { this.root = root; this.active = null; this.pendingResolve = null; this.previewTimers = new Set(); }
+    start(type, settings = {}) { this.cancel(); return new Promise((resolve) => { const Game = GAMES[type]; if (!Game) { resolve({ success: true, score: 0, accuracy: 1, time: 0 }); return; } this.pendingResolve = resolve; const finish = (result) => { this.active = null; this.pendingResolve = null; resolve(result); }; this.active = new Game(this.root, { ...settings, type }, finish); this.active.start(); }); }
+    cancel() { if (this.active) this.active.cancel(); this.active = null; if (this.pendingResolve) { const resolve = this.pendingResolve; this.pendingResolve = null; resolve({ success: false, cancelled: true }); } this.previewTimers.forEach(clearTimeout); this.previewTimers.clear(); this.root.hidden = true; this.root.innerHTML = ""; }
     schedule(callback, delay) { const timer = setTimeout(() => { this.previewTimers.delete(timer); callback(); }, delay); this.previewTimers.add(timer); }
-    showEncounterCountdown(title, onComplete) { this.cancel(); this.root.hidden = false; this.root.innerHTML = `<div class="minigame-panel encounter-alert"><div class="encounter-label">MONSTRO NO FEED</div><h3>${title}</h3><p>DISPUTA COMEÇA EM</p><div class="encounter-count" id="encounterCount">3</div></div>`; let count = 3; const tick = () => { count--; const counter = this.root.querySelector("#encounterCount"); if (!counter) return; counter.textContent = count > 0 ? String(count) : "VAI"; count > 0 ? this.schedule(tick, 850) : this.schedule(() => { this.root.hidden = true; this.root.innerHTML = ""; onComplete(); }, 600); }; this.schedule(tick, 850); }
+    showEncounterCountdown(title, image, onComplete) { this.cancel(); playSound("monster"); this.root.hidden = false; this.root.innerHTML = `<div class="minigame-panel encounter-alert"><div class="encounter-label">MONSTRO ENCONTRADO</div><img class="encounter-monster" src="${image}" alt="${title}"><h3>${title}</h3><p>EMBATE COMEÇA EM</p><div class="encounter-count" id="encounterCount">3</div></div>`; let count = 3; playSound("countdown"); const tick = () => { count--; const counter = this.root.querySelector("#encounterCount"); if (!counter) return; counter.textContent = count > 0 ? String(count) : "VAI"; playSound("countdown"); count > 0 ? this.schedule(tick, 950) : this.schedule(() => { this.root.hidden = true; this.root.innerHTML = ""; onComplete(); }, 650); }; this.schedule(tick, 1100); }
     showResult(success, message, onComplete, options = {}) { this.cancel(); if (options.instant) { onComplete(); return; } this.root.hidden = false; this.root.innerHTML = `<div class="minigame-panel result compact ${success ? "success" : "failure"}"><div class="result-burst">${success ? "VITÓRIA" : "RESULTADO"}</div><p>${message}</p><small>Voltando ao feed</small></div>`; this.schedule(() => { this.cancel(); onComplete(); }, options.duration || 1200); }
   }
 
