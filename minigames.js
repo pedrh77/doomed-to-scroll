@@ -2,8 +2,8 @@
 
 (function exposeMiniGames(global) {
   const DIRECTIONS = [
-    { key: "LEFT", symbol: "←" }, { key: "DOWN", symbol: "↓" },
-    { key: "UP", symbol: "↑" }, { key: "RIGHT", symbol: "→" }
+    { key: "LEFT", symbol: "ESQ" }, { key: "DOWN", symbol: "BAIXO" },
+    { key: "UP", symbol: "CIMA" }, { key: "RIGHT", symbol: "DIR" }
   ];
   const GAME_HELP = Object.freeze({
     TAP_CHALLENGE: "Toque no alvo até completar a barra.", SEQUENCE: "Memorize as direções e repita na ordem.",

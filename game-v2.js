@@ -28,11 +28,11 @@ const COSMETICS = [
 ];
 
 const CARD_ACTIONS = Object.freeze({
-  NORMAL: { verb: "CURTIR", icon: "♥" }, LIFE: { verb: "RESGATAR", icon: "+" },
+  NORMAL: { verb: "CURTIR", icon: "C" }, LIFE: { verb: "RESGATAR", icon: "V" },
   ENERGY: { verb: "RECUPERAR", icon: "E" }, ITEM: { verb: "PEGAR", icon: "I" },
-  CHEST: { verb: "ABRIR", icon: "□" }, ENEMY: { verb: "ENFRENTAR", icon: "!" },
-  RISK: { verb: "ARRISCAR", icon: "?" }, MYSTERY: { verb: "INVESTIGAR", icon: "*" },
-  EVOLUTION: { verb: "DESPERTAR", icon: "^" }
+  CHEST: { verb: "ABRIR", icon: "A" }, ENEMY: { verb: "ENFRENTAR", icon: "L" },
+  RISK: { verb: "ARRISCAR", icon: "R" }, MYSTERY: { verb: "INVESTIGAR", icon: "?" },
+  EVOLUTION: { verb: "DESPERTAR", icon: "EV" }
 });
 
 const COMMENT_BANK = Object.freeze({
@@ -240,14 +240,14 @@ function renderHud() {
   $("energyValue").textContent = `${run.energy}/${run.maxEnergy}`;
   $("healthValue").textContent = `${run.health}/${run.maxHealth}`;
   $("energyPips").innerHTML = Array.from({ length: run.maxEnergy }, (_, index) => `<i class="${index < run.energy ? "full" : ""}"></i>`).join("");
-  $("healthHearts").innerHTML = Array.from({ length: run.maxHealth }, (_, index) => `<i class="${index < run.health ? "full" : ""}">♥</i>`).join("");
+  $("healthHearts").innerHTML = Array.from({ length: run.maxHealth }, (_, index) => `<i class="${index < run.health ? "full" : ""}" aria-hidden="true"></i>`).join("");
   $("mascot").dataset.sprite = run.health <= 1 ? "frightened" : run.energy <= 2 ? "sleepy" : current && current.type === "ENEMY" ? "curious" : "neutral";
   document.body.classList.toggle("critical-health", run.health <= 1);
 }
 
 function showHeartFeedback() {
   const heart = $("heartBurst");
-  heart.textContent = (CARD_ACTIONS[current?.type] || CARD_ACTIONS.NORMAL).icon;
+  heart.textContent = (CARD_ACTIONS[current?.type] || CARD_ACTIONS.NORMAL).verb;
   heart.classList.remove("show");
   void heart.offsetWidth;
   heart.classList.add("show");

@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&amp;family=Press+Start+2P&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=game-ui-1">
+  <link rel="stylesheet" href="styles.css?v=game-ui-7">
 </head>
 <body>
   <main id="app" aria-live="polite">
@@ -47,7 +47,7 @@
         <div class="hud-resource energy-resource"><span>ENERGIA <b id="energyValue">7/10</b></span><div class="pips" id="energyPips"></div></div>
         <div class="sprite mascot" id="mascot" data-sprite="neutral"></div>
         <div class="hud-resource health-resource"><span>VIDA <b id="healthValue">3/3</b></span><div class="hearts" id="healthHearts"></div></div>
-        <button id="stopBtn" class="stop" aria-label="Encerrar noite">×</button>
+        <button id="stopBtn" class="stop" aria-label="Encerrar noite">SAIR</button>
       </header>
       <div class="run-stats">
         <span>MOEDAS <b id="runCoins">0</b></span><span>POST <b id="post">1</b></span><span>NOITE <b id="nightPercent">0%</b></span>
@@ -57,12 +57,12 @@
           <div class="card-top"><span id="rarity" class="rarity">COMMON</span><span id="category">NORMAL</span><span id="energyCost" class="energy-cost"></span></div>
           <div id="artStage" class="art-stage">
             <img id="postImage" alt="" draggable="false">
-            <div id="heartBurst" class="heart-burst" aria-hidden="true">♥</div>
+            <div id="heartBurst" class="heart-burst" aria-hidden="true"></div>
             <div id="fx"></div>
             <aside class="social-actions" aria-label="Ações do post">
-              <button id="heartBtn" class="social-button heart-button" aria-label="Curtir e interagir"><span>♥</span><b id="likeCount">0</b></button>
-              <button id="commentBtn" class="social-button" aria-label="Comentários"><span>●</span><b id="commentCount">0</b></button>
-              <button id="saveBtn" class="social-button" aria-label="Salvar post" aria-pressed="false"><span>◆</span><b id="saveCount">0</b></button>
+              <button id="heartBtn" class="social-button heart-button" aria-label="Curtir e interagir"><span class="action-icon">C</span><b id="likeCount">0</b></button>
+              <button id="commentBtn" class="social-button" aria-label="Comentários"><span class="comment-icon" aria-hidden="true"></span><b id="commentCount">0</b></button>
+              <button id="saveBtn" class="social-button" aria-label="Salvar post" aria-pressed="false"><span class="save-icon" aria-hidden="true"></span><b id="saveCount">0</b></button>
             </aside>
           </div>
           <div class="card-copy">
@@ -78,13 +78,13 @@
           </div>
         </article>
         <div id="miniGameOverlay" class="minigame-overlay" hidden></div>
-        <div class="gesture-hint"><span>↑ role para continuar</span><span>ação lateral ou dois toques</span></div>
+        <div class="gesture-hint"><span>ROLE PARA CONTINUAR</span><span>AÇÃO LATERAL OU DOIS TOQUES</span></div>
       </div>
       <div id="progressTracker" class="progress-tracker" hidden></div>
       <footer class="inventory"><span class="inventory-label">MOCHILA</span><div id="slots"></div></footer>
       <div id="tutorialOverlay" class="tutorial-overlay" hidden>
         <section class="tutorial-panel game-panel" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
-          <div id="tutorialIcon" class="tutorial-icon" aria-hidden="true">↕</div>
+          <div id="tutorialIcon" class="tutorial-icon" aria-hidden="true">01</div>
           <span id="tutorialStep" class="tutorial-step">PASSO 1 DE 3</span>
           <h2 id="tutorialTitle">ROLE O FEED</h2>
           <p id="tutorialText">Deslize para cima ou para baixo. Passar um post não gasta Energia.</p>
@@ -131,9 +131,9 @@
     </section>
     <div id="toast" class="toast"></div>
   </main>
-  <script src="game-config.js"></script>
-  <script src="game-core.js"></script>
-  <script src="minigames.js"></script>
-  <script src="game-v2.js"></script>
+  <script src="game-config.js?v=game-ui-7"></script>
+  <script src="game-core.js?v=game-ui-7"></script>
+  <script src="minigames.js?v=game-ui-7"></script>
+  <script src="game-v2.js?v=game-ui-7"></script>
 </body>
 </html>
